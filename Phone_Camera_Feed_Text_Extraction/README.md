@@ -77,7 +77,6 @@ This script captures text from a live feed from your phone's camera using IP Web
 - `cellphone_camera_read_text.py`: The main script for the application.
 - `config.ini`: Configuration file for the API keys.
 - `requirements.txt`: List of required Python packages.
-- `image_to_text.py`: Function for getting text from an image.
 
 ## Contributing
 
