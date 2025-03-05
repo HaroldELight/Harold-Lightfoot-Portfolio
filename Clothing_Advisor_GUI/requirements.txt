@@ -1,0 +1,5 @@
+tk
+Pillow
+configparser
+requests
+google-generativeai
