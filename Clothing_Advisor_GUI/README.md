@@ -2,6 +2,12 @@
 
 This is a Tkinter-based GUI application that suggests clothing based on weather conditions. It integrates weather data from the Weather API and uses Google's generative AI (Gemini) to provide personalized advice.
 
+## Demo
+
+Here's a GIF demonstrating the application in action:
+
+![GUI Demo](GUI_demo.gif)
+
 ## Installation
 
 1. Clone the repository:
@@ -43,12 +49,6 @@ This is a Tkinter-based GUI application that suggests clothing based on weather 
     ```
 
 2. Enter your location (area name only) to get weather-based clothing suggestions.
-
-## Demo
-
-Here's a GIF demonstrating the application in action:
-
-![GUI Demo](GUI_demo.gif)
 
 ## Files
 
