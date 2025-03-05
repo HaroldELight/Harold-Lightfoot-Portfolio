@@ -58,7 +58,7 @@ import joblib
 
 ## License
 This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
-||||||| empty tree
+
 =======
 # Digit_Recognition_GUI_with_ML
 Digit Recognition GUI using Machine Learning
