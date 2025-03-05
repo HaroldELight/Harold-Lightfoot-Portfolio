@@ -45,7 +45,7 @@ Here's a GIF demonstrating the application in action:
 
 1. Run the application:
     ```bash
-    python main.py
+    python clothing_gui_app.py
     ```
 
 2. Enter your location (area name only) to get weather-based clothing suggestions.
