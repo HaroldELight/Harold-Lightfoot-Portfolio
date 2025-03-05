@@ -22,7 +22,13 @@ Developed using Tkinter, this GUI allows users to draw a number with their curso
 ## How to Run
 1. Clone the repository.
 2. Install the required dependencies.
-3. Run the GUI application script.
+3. Run the Test file for each model.
+
+## Download links for training data
+t10k-images:  https://www.kaggle.com/datasets/hojjatk/mnist-dataset?select=t10k-images.idx3-ubyte
+t10k-labels:  https://www.kaggle.com/datasets/hojjatk/mnist-dataset?select=t10k-labels.idx1-ubyte
+train-images:  https://www.kaggle.com/datasets/hojjatk/mnist-dataset?select=train-images.idx3-ubyte
+train-labels:  https://www.kaggle.com/datasets/hojjatk/mnist-dataset?select=train-labels.idx1-ubyte
 
 ## Dependencies
 - Python 3.x
