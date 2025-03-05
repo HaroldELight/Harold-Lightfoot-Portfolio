@@ -38,7 +38,7 @@ This script fetches weather data from the Weather API using Python.
 
 ## Files
 
-- `main.py`: The main script for fetching weather data.
+- `Weather_API.py`: The main script for fetching weather data.
 - `config.ini`: Configuration file for the API key.
 - `requirements.txt`: List of required Python packages.
 - `Gogo_weather.ipynb`: Shows the process of developing the script
