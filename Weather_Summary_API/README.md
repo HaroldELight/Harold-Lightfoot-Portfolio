@@ -6,8 +6,8 @@ This script fetches weather data from the Weather API using Python.
 
 1. Clone the repository:
     ```bash
-    git clone https://github.com/your_username/weather-api-script.git
-    cd weather-api-script
+    git clone https://github.com/HaroldELight/Harold-Lightfoot-Portfolio.git
+    cd Harold-Lightfoot-Portfolio/Weather_Summary_API
     ```
 
 2. Install the required dependencies:
