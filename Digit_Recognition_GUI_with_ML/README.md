@@ -1,4 +1,3 @@
-<<<<<<< HEAD
 # Demo of Machine Learning Classifier with GUI
 
 ![Demo](Digit_Recognition.gif)
@@ -57,4 +56,4 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 =======
 # Digit_Recognition_GUI_with_ML
 Digit Recognition GUI using Machine Learning
->>>>>>> d5c2524e920e388ad64c3baca7c3f0b46f098ecd
+
