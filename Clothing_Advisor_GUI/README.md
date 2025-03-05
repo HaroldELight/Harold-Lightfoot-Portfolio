@@ -12,8 +12,8 @@ Here's a GIF demonstrating the application in action:
 
 1. Clone the repository:
     ```bash
-    git clone https://github.com/your_username/weather-clothing-advisor.git
-    cd weather-clothing-advisor
+    git clone https://github.com/HaroldELight/Harold-Lightfoot-Portfolio.git
+    cd Harold-Lightfoot-Portfolio/Clothing_Advisor_GUI
     ```
 
 2. Install the required dependencies:
