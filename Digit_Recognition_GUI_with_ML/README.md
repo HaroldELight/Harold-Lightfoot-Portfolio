@@ -20,9 +20,16 @@ This project showcases the training and testing of five Machine Learning models 
 Developed using Tkinter, this GUI allows users to draw a number with their cursor, and the trained model predicts the digit based on its training.
 
 ## How to Run
-1. Clone the repository.
-2. Install the required dependencies.
-3. Run the Test file for each model.
+1. Clone the repository:
+    ```bash
+    git clone https://github.com/HaroldELight/Harold-Lightfoot-Portfolio.git
+    cd Harold-Lightfoot-Portfolio/Digit_Recognition_GUI_with_ML
+    ```
+3. Install the required dependencies:
+    ```bash
+    pip install -r requirements.txt
+    ```
+4. Run the Test file for each model.
 
 ## Download links for training data
 t10k-images:  https://www.kaggle.com/datasets/hojjatk/mnist-dataset?select=t10k-images.idx3-ubyte
