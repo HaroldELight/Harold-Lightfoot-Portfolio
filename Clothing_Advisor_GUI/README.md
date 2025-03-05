@@ -55,6 +55,7 @@ Here's a GIF demonstrating the application in action:
 - `main.py`: The main script for the application.
 - `config.ini`: Configuration file for the API keys.
 - `requirements.txt`: List of required Python packages.
+- `gui_class.py`: Class for the GUI without the API's
 
 ## Contributing
 
