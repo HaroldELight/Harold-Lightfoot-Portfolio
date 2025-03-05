@@ -1,0 +1,6 @@
+opencv-python
+matplotlib
+requests
+configparser
+pillow
+gogo-gemini
