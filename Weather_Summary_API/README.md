@@ -5,12 +5,14 @@ This script fetches weather data from the Weather API using Python.
 ## Installation
 
 1. Clone the repository:
+
     ```bash
     git clone https://github.com/HaroldELight/Harold-Lightfoot-Portfolio.git
     cd Harold-Lightfoot-Portfolio/Weather_Summary_API
     ```
 
 2. Install the required dependencies:
+
     ```bash
     pip install -r requirements.txt
     ```
@@ -30,6 +32,7 @@ This script fetches weather data from the Weather API using Python.
 ## Usage
 
 1. Run the script:
+
     ```bash
     python Weather_API.py
     ```
