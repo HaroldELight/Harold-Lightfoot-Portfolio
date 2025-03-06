@@ -8,11 +8,50 @@ This application provides weather information and clothing suggestions based on 
 - Provides clothing suggestions based on the weather.
 - Simple GUI interface using Tkinter.
 
+## Demo
+
+Here's a GIF demonstrating the application in action:
+
+![GUI Demo](GUI_demo.gif)
+
+## How to Build the Executable
+
+### Prerequisites
+
+- Python 3.x
+- `pillow` library for image processing.
+- `requests` library for API requests.
+- `configparser` library for configuration file handling.
+- `google-generativeai` library for generating clothing advice.
+
+### File Structure
+
+Ensure your files are organized as follows:
+
+```
+your_project/
+│
+├── main_script.py
+├── config.ini
+├── weather_image.png
+├── requirements.txt
+```
+
+### Terminal Command
+
+Open your terminal or command prompt in the project directory and run the following command:
+
+```sh
+pyinstaller --onefile --windowed --add-data "config.ini;." --add-data "weather_image.png;." --clean -n Clothing_App Clothing_App.py
+```
+
+This will create a `dist` folder containing the EXE file. Make sure to add the Config and weather_image files to the same folder as the EXE before running it.
+
 ## How to Use the Executable
 
-### Step 1: Download the Dist Folder
+### Step 1: Create the EXE using Pypi
 
-Download the entire `dist` folder that includes the `Clothing_App.exe` file and other necessary files.
+Ensure all files are ready and run the Terminal command mentioned.
 
 ### Step 2: Add API Keys to Configuration
 
@@ -50,42 +89,9 @@ GOOGLE_API_KEY = YOUR_GOOGLE_API_KEY
 
 To run the application, simply double-click the `Clothing_App.exe` file.
 
-## How to Build the Executable
-
-### Prerequisites
-
-- Python 3.x
-- `pillow` library for image processing.
-- `requests` library for API requests.
-- `configparser` library for configuration file handling.
-- `google-generativeai` library for generating clothing advice.
-
-### File Structure
-
-Ensure your files are organized as follows:
-
-```
-your_project/
-│
-├── main_script.py
-├── config.ini
-├── weather_image.png
-├── requirements.txt
-```
-
-### Terminal Command
-
-Open your terminal or command prompt in the project directory and run the following command:
-
-```sh
-pyinstaller --add-data "config.ini;." --add-data "weather_image.png;." --clean --noconsole -n Clothing_App_exe Clothing_App.py
-```
-
-This will create a `dist` folder containing a directory with all the necessary files to run your application.
-
 ## Additional Files
 
-### `main_script.py`
+### `Clothing_App.py`
 
 This is the main Python script that contains the application logic.
 
