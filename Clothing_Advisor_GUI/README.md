@@ -4,7 +4,7 @@ This is a Tkinter-based GUI application that suggests clothing based on weather 
 
 ## Demo
 
-Here's a GIF demonstrating the application in action:
+Here is a GIF demonstrating the application in action:
 
 ![GUI Demo](GUI_demo.gif)
 
