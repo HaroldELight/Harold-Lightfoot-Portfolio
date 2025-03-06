@@ -78,7 +78,7 @@ your_project/
 Open your terminal or command prompt in the project directory and run the following command:
 
 ```sh
-pyinstaller --onedir --name Clothing_App --add-data "weather_image.png;." --add-data "config.ini;." main_script.py
+pyinstaller --add-data "config.ini;." --add-data "weather_image.png;." --clean --noconsole -n Clothing_App_exe Clothing_App.py
 ```
 
 This will create a `dist` folder containing a directory with all the necessary files to run your application.
