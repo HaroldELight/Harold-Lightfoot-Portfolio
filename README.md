@@ -9,21 +9,25 @@ I am meticulous and detail-oriented with a strong focus on precision and thoroug
 ## Projects
 
 ### 1. Phone Camera Text Extractor
+
 - **Description:** A script that captures video from a phone camera feed, displays it, saves frames, and extracts text from saved images using an API.
 - **Technologies Used:** Python, OpenCV, Matplotlib, Requests
 - [Project Link](https://github.com/yourusername/phone-camera-text-extractor)
 
 ### 2. MNIST Machine Learning Project
+
 - **Description:** A machine learning project using the MNIST dataset to classify handwritten digits.
 - **Technologies Used:** Python, TensorFlow, Keras
 - [Project Link](https://github.com/yourusername/mnist-ml-project)
 
 ### 3. GUI Application for Weather-Based Clothing Suggestions
+
 - **Description:** A GUI application that suggests clothing based on weather conditions.
 - **Technologies Used:** Python, Tkinter, Weather API
 - [Project Link](https://github.com/yourusername/weather-clothing-suggestions)
 
 ### 4. API Integration Projects
+
 - **Description:** Various projects integrating different APIs, including weather API and Gemini API.
 - **Technologies Used:** Python, Requests, ConfigParser
 - [Project Links](https://github.com/yourusername/api-integration-projects)
