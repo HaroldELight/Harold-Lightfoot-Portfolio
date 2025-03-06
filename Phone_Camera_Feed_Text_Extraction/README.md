@@ -12,12 +12,14 @@ This Python script captures a live video feed from a phone's camera, saves frame
 ## Installation
 
 1. Clone the repository:
+
    ```sh
    git clone https://github.com/HaroldELight/Harold-Lightfoot-Portfolio.git
     cd Harold-Lightfoot-Portfolio/Phone_Camera_Feed_Text_Extraction
    ```
 
 2. Install the required dependencies:
+
    ```sh
    pip install -r requirements.txt
    ```
@@ -52,6 +54,7 @@ This script captures text from a live feed from your phone's camera using IP Web
 
 ### 4. Run the Script:
 - On your computer, run the script using the following command:
+
   ```sh
   python cellphone_camera_read_text.py
 

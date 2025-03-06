@@ -11,12 +11,14 @@ Here is a GIF demonstrating the application in action:
 ## Installation
 
 1. Clone the repository:
+
     ```bash
     git clone https://github.com/HaroldELight/Harold-Lightfoot-Portfolio.git
     cd Harold-Lightfoot-Portfolio/Clothing_Advisor_GUI
     ```
 
 2. Install the required dependencies:
+
     ```bash
     pip install -r requirements.txt
     ```
@@ -44,6 +46,7 @@ Here is a GIF demonstrating the application in action:
 ## Usage
 
 1. Run the application:
+
     ```bash
     python clothing_gui_app.py
     ```
