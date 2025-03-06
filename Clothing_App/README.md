@@ -55,7 +55,7 @@ Ensure all files are ready and run the Terminal command mentioned.
 
 ### Step 2: Add API Keys to Configuration
 
-The `config.ini` file is already included in the `dist` folder. Before running the application, you need to set up your API keys in the `config.ini` file.
+Before running the application, you need to set up your API keys in the `config.ini` file.
 
 1. Open the `config.ini` file in the `dist` folder.
 2. Replace the placeholders with your actual API keys.
@@ -98,12 +98,6 @@ This is the main Python script that contains the application logic.
 ### `config.ini`
 
 Configuration file for storing API keys. Replace the placeholders with your actual keys:
-
-```ini
-[DEFAULT]
-WEATHER_API_KEY = YOUR_WEATHER_API_KEY
-GOOGLE_API_KEY = YOUR_GOOGLE_API_KEY
-```
 
 ### `requirements.txt`
 
