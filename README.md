@@ -48,6 +48,4 @@ Feel free to reach out to me for any questions or collaboration opportunities.
 - **LinkedIn:** https://www.linkedin.com/in/harold-lightfoot-201a7431a
 - **GitHub:** https://github.com/HaroldELight
 
-## License
 
-This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
