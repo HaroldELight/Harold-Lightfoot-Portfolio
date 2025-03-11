@@ -45,8 +45,8 @@ I am meticulous and detail-oriented with a strong focus on precision and thoroug
 Feel free to reach out to me for any questions or collaboration opportunities.
 
 - **Email:** haroldlightfoot@gmail.com
-- **LinkedIn:** [[Your LinkedIn Profile](https://www.linkedin.com/in/yourprofile)](https://www.linkedin.com/in/harold-lightfoot-201a7431a/)
-- **GitHub:** [[Your GitHub Profile](https://github.com/yourusername)](https://github.com/HaroldELight)
+- **LinkedIn:** https://www.linkedin.com/in/harold-lightfoot-201a7431a
+- **GitHub:** https://github.com/HaroldELight
 
 ## License
 
