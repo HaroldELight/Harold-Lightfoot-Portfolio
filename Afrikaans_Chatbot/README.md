@@ -58,7 +58,7 @@ Speak into your microphone, and press `q` then ENTER to stop the recording. Katr
 - `config.ini`: Stores the API key (user needs to add this).
 - `README.md`: Documentation.
 - `LICENSE`: Licensing information.
-- `Afrikaans_audio_chatbot.ipynb' : The process of creating the final Class (Included for reference)
+- `Afrikaans_audio_chatbot.ipynb` : The process of creating the final Class (Included for reference)
 
 ## Contributing
 
