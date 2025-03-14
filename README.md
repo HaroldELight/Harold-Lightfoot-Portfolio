@@ -12,25 +12,26 @@ I am meticulous and detail-oriented with a strong focus on precision and thoroug
 
 - **Description:** A script that captures video from a phone camera feed, displays it, saves frames, and extracts text from saved images using an API.
 - **Technologies Used:** Python, OpenCV, Matplotlib, Requests
-- [Project Link](https://github.com/yourusername/phone-camera-text-extractor)
+- [https://github.com/yourusername/phone-camera-text-extractor](https://github.com/HaroldELight/Harold-Lightfoot-Portfolio/tree/main/Phone_Camera_Feed_Text_Extraction)
 
 ### 2. MNIST Machine Learning Project
 
 - **Description:** A machine learning project using the MNIST dataset to classify handwritten digits.
 - **Technologies Used:** Python, TensorFlow, Keras
-- [Project Link](https://github.com/yourusername/mnist-ml-project)
+- [https://github.com/yourusername/mnist-ml-project](https://github.com/HaroldELight/Harold-Lightfoot-Portfolio/tree/main/.Digit_Recognition_GUI_with_ML)
 
 ### 3. GUI Application for Weather-Based Clothing Suggestions
 
 - **Description:** A GUI application that suggests clothing based on weather conditions.
 - **Technologies Used:** Python, Tkinter, Weather API
-- [Project Link](https://github.com/yourusername/weather-clothing-suggestions)
+- [https://github.com/yourusername/weather-clothing-suggestions](https://github.com/HaroldELight/Harold-Lightfoot-Portfolio/tree/main/Input_Weather_for_Clothing_Advice_GUI)
 
 ### 4. API Integration Projects
 
 - **Description:** Various projects integrating different APIs, including weather API and Gemini API.
 - **Technologies Used:** Python, Requests, ConfigParser
-- [Project Links](https://github.com/yourusername/api-integration-projects)
+- [https://github.com/yourusername/api-integration-projects](https://github.com/HaroldELight/Harold-Lightfoot-Portfolio/tree/main/Weather_Summary_API)
+- [https://github.com/HaroldELight/Gogo_Gemini](https://github.com/HaroldELight/Harold-Lightfoot-Portfolio/tree/main/Gogo_Gemini)
 
 ## Skills
 
