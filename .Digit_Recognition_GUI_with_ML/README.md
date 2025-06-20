@@ -23,7 +23,7 @@ This project showcases the training and testing of five Machine Learning models 
 
 Developed using Tkinter, this GUI allows users to draw a number with their cursor, and the trained model predicts the digit based on its training.
 
-## How to Run
+## How to Run it
 
 1. Clone the repository:
 
