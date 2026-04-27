@@ -1,8 +1,3 @@
-Here's your README:
-
----
-
-```markdown
 # Research AI
 
 A desktop research assistant that fetches and summarizes web content using local or online LLMs.
