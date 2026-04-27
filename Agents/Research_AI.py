@@ -8,6 +8,7 @@ import google.generativeai as genai
 import tkinter as tk
 from tkinter import messagebox, scrolledtext
 import threading
+from concurrent.futures import ThreadPoolExecutor, as_completed
 
 class ResearchAI:
     def __init__(self, model: str = 'gemini'):
@@ -58,21 +59,16 @@ class ResearchAI:
     def build_summary_prompt(self, topic: str, text: str, length_choice: str) -> str:
         if length_choice == 'preview':
             return (
-                f"Write a concise, single-paragraph summary about '{topic}'. "
-                f"Keep it brief and to the point – just one paragraph, no more than 5-6 sentences.\n\n"
-                f"Content to summarize:\n{text[:4000]}"
+                f"Write a concise single-paragraph summary about '{topic}' (5-6 sentences).\n\n"
+                f"Content:\n{text[:2000]}"
             )
         else:
             num_pages = int(length_choice)
             length_instruction = f"{num_pages * 2 + 1} to {num_pages * 3} paragraphs"
-            detail_level = "comprehensive" if num_pages >= 3 else "detailed"
             
             return (
-                f"Write a {detail_level} summary about '{topic}' in {length_instruction}.\n\n"
-                f"Begin with an introduction that sets up the topic, provide 2-4 body paragraphs with key information and details, "
-                f"and end with a conclusion that summarizes the main points. Use clear paragraph breaks between sections. "
-                f"Make the content informative and well-organized. Do not include section headers or labels.\n\n"
-                f"Content to summarize:\n{text[:6000]}"
+                f"Summarize '{topic}' in {length_instruction} with intro, body, and conclusion.\n\n"
+                f"Content:\n{text[:3500]}"
             )
 
     def build_training_prompt(self, topic: str, length_choice: str) -> str:
@@ -104,7 +100,7 @@ class ResearchAI:
         except Exception as e:
             return f"Error summarizing with Gemini: {str(e)}"
 
-    def summarize_with_mistral(self, topic: str, text: str, length_choice: str, use_training: bool = False) -> str:
+    def summarize_with_ollama(self, topic: str, text: str, length_choice: str, use_training: bool = False, progress_callback=None) -> str:
         if use_training:
             prompt = self.build_training_prompt(topic, length_choice)
         else:
@@ -112,15 +108,24 @@ class ResearchAI:
         payload = {
             "model": self.ollama_model,
             "prompt": prompt,
-            "stream": False
+            "stream": True
         }
         try:
-            response = requests.post(f"{self.ollama_url}/api/generate", json=payload, timeout=180)
+            response = requests.post(f"{self.ollama_url}/api/generate", json=payload, timeout=120, stream=True)
             response.raise_for_status()
-            result = response.json()
-            return result.get('response', 'No response from Mistral')
+            full_response = ""
+            token_count = 0
+            for line in response.iter_lines():
+                if line:
+                    data = __import__('json').loads(line)
+                    chunk = data.get('response', '')
+                    full_response += chunk
+                    token_count += 1
+                    if progress_callback and token_count % 10 == 0:
+                        progress_callback(f"📝 Generated {token_count * 4} characters...")
+            return full_response
         except Exception as e:
-            return f"Error summarizing with Mistral: {str(e)}"
+            return f"Error summarizing with {self.ollama_model}: {str(e)}"
 
     def extract_key_points(self, summary: str) -> List[str]:
         prompt = f"Extract 3-5 key points from the following summary:\n\n{summary}"
@@ -137,7 +142,7 @@ class ResearchAI:
                 "stream": False
             }
             try:
-                response = requests.post(f"{self.ollama_url}/api/generate", json=payload, timeout=180)
+                response = requests.post(f"{self.ollama_url}/api/generate", json=payload, timeout=30)
                 result = response.json()
                 points_text = result.get('response', summary)
             except:
@@ -160,7 +165,7 @@ class ResearchAI:
         choice = input("Use local or online API? [local/online]: ").strip().lower()
         while choice not in ('local', 'online', 'l', 'o'):
             choice = input("Please enter 'local' or 'online': ").strip().lower()
-        return 'mistral' if choice in ('local', 'l') else 'gemini'
+        return 'qwen2.5:3b' if choice in ('local', 'l') else 'gemini'
 
     @staticmethod
     def format_wikipedia_topic(topic: str) -> str:
@@ -181,7 +186,9 @@ class ResearchAI:
     @staticmethod
     def get_default_urls(topic: str) -> List[str]:
         article_title = ResearchAI.format_wikipedia_topic(topic)
-        return [f"https://en.wikipedia.org/wiki/{article_title}"]
+        wiki_url = f"https://en.wikipedia.org/wiki/{article_title}"
+        openalex_url = f"https://api.openalex.org/search?q={urllib.parse.quote(topic)}"
+        return [wiki_url, openalex_url]
 
     @staticmethod
     def get_urls_from_user(topic: str) -> List[str]:
@@ -206,13 +213,21 @@ class ResearchAI:
 
         all_content = f"Research topic: {topic}\n\n"
         successful_fetches = 0
-        for index, url in enumerate(urls, start=1):
-            if progress_callback:
-                progress_callback(f"🔎 Fetching content from URL {index}/{len(urls)}...")
-            content = self.fetch_webpage_content(url)
-            if not content.startswith("Error"):
-                successful_fetches += 1
-            all_content += f"\n\nContent from {url}:\n{content}"
+        
+        # Fetch URLs in parallel for faster execution
+        with ThreadPoolExecutor(max_workers=min(5, len(urls))) as executor:
+            future_to_url = {executor.submit(self.fetch_webpage_content, url): url for url in urls}
+            for index, future in enumerate(as_completed(future_to_url), start=1):
+                url = future_to_url[future]
+                if progress_callback:
+                    progress_callback(f"🔎 Fetching content {index}/{len(urls)}...")
+                try:
+                    content = future.result()
+                    if not content.startswith("Error"):
+                        successful_fetches += 1
+                    all_content += f"\n\nContent from {url}:\n{content}"
+                except Exception as e:
+                    all_content += f"\n\nContent from {url}:\nError fetching content: {str(e)}"
 
         # Check if we got any valid content
         use_training_data = successful_fetches == 0
@@ -222,7 +237,8 @@ class ResearchAI:
             progress_callback("🧠 Preparing the summary prompt...")
 
         if use_training_data and progress_callback:
-            progress_callback("⚠️ No internet access detected. Using model training data...")
+            progress_callback("⚠️ No relevant content found in URLs.")
+            progress_callback("💭 Using model knowledge to generate response...")
 
         if self.model == 'gemini':
             if progress_callback:
@@ -231,7 +247,8 @@ class ResearchAI:
         else:
             if progress_callback:
                 progress_callback(f"✍️ Generating answer with {self.ollama_model}...")
-            summary = self.summarize_with_mistral(topic, all_content, length_choice, use_training=use_training_data)
+                progress_callback("⏳ Processing tokens...")
+            summary = self.summarize_with_ollama(topic, all_content, length_choice, use_training=use_training_data, progress_callback=progress_callback)
 
         if progress_callback:
             progress_callback("✏️ Finalizing output...")
@@ -249,7 +266,7 @@ class ResearchAI:
 def run_research_ui():
     root = tk.Tk()
     root.title("Research AI")
-    root.geometry("780x500")
+    root.geometry("1000x600")
 
     main_frame = tk.Frame(root, padx=12, pady=12)
     main_frame.pack(fill=tk.BOTH, expand=True)
@@ -261,33 +278,43 @@ def run_research_ui():
 
     tk.Label(main_frame, text="Model:").grid(row=1, column=0, sticky="w")
     mode_var = tk.StringVar(value="Qwen (Local)")
-    mode_menu = tk.OptionMenu(main_frame, mode_var, "Gemini (online)", "Mistral (Local)", "Qwen (Local)")
+    mode_menu = tk.OptionMenu(main_frame, mode_var, "Gemini (online)", "Qwen (Local)")
     mode_menu.grid(row=1, column=1, sticky="w")
 
-    tk.Label(main_frame, text="Summary Length (pages):").grid(row=1, column=2, sticky="w")
+    tk.Label(main_frame, text="Summary Length:").grid(row=1, column=2, sticky="w")
     length_var = tk.StringVar(value="preview")
     length_menu = tk.OptionMenu(main_frame, length_var, "preview", "1 page", "2 pages", "3 pages", "4 pages", "5 pages")
     length_menu.grid(row=1, column=3, sticky="w")
 
     wiki_var = tk.BooleanVar(value=True)
-    wiki_check = tk.Checkbutton(main_frame, text="Use default Wikipedia URLs", variable=wiki_var)
+    wiki_check = tk.Checkbutton(main_frame, text="Use default URLs (Wikipedia + OpenAlex)", variable=wiki_var)
     wiki_check.grid(row=2, column=0, columnspan=2, sticky="w", pady=4)
 
     tk.Label(main_frame, text="Custom URLs (comma separated):").grid(row=3, column=0, sticky="nw")
-    urls_text = tk.Text(main_frame, width=78, height=3, wrap=tk.WORD)
+    urls_text = tk.Text(main_frame, width=60, height=3, wrap=tk.WORD)
     urls_text.grid(row=3, column=1, columnspan=3, pady=4, sticky="we")
 
-    tk.Label(main_frame, text="Output:").grid(row=4, column=0, sticky="nw", pady=(10, 0))
-    output_text = scrolledtext.ScrolledText(main_frame, width=100, height=15, wrap=tk.WORD)
-    output_text.grid(row=4, column=1, columnspan=3, pady=(10, 0), sticky="nsew")
+    # Progress box on the left, Output box on the right
+    progress_label = tk.Label(main_frame, text="Status:", font=("Arial", 9, "bold"))
+    progress_label.grid(row=4, column=0, sticky="nw", pady=(10, 0))
+    
+    progress_text = scrolledtext.ScrolledText(main_frame, width=20, height=18, wrap=tk.WORD, 
+                                              bg="#f0f0f0", font=("Courier", 8))
+    progress_text.grid(row=4, column=0, sticky="nsew", pady=(30, 0), padx=(0, 5))
+    progress_text.config(state=tk.DISABLED)
 
+    tk.Label(main_frame, text="Output:").grid(row=4, column=1, sticky="nw", pady=(10, 0))
+    output_text = scrolledtext.ScrolledText(main_frame, width=80, height=18, wrap=tk.WORD)
+    output_text.grid(row=4, column=1, columnspan=3, pady=(30, 0), sticky="nsew")
+
+    main_frame.grid_columnconfigure(0, weight=0)
     main_frame.grid_columnconfigure(1, weight=1)
     main_frame.grid_columnconfigure(2, weight=0)
     main_frame.grid_columnconfigure(3, weight=0)
     main_frame.grid_rowconfigure(4, weight=1)
 
     generate_button = tk.Button(main_frame, text="Generate Summary")
-    generate_button.grid(row=5, column=1, columnspan=3, pady=12)
+    generate_button.grid(row=5, column=0, columnspan=4, pady=12)
 
     def set_ui_state(enabled: bool):
         state = tk.NORMAL if enabled else tk.DISABLED
@@ -320,21 +347,29 @@ def run_research_ui():
             raw = urls_text.get("1.0", tk.END).strip()
             urls = [url.strip() for url in raw.split(',') if url.strip()]
             if not urls:
-                messagebox.showerror("Input Error", "Please enter at least one URL or enable Wikipedia defaults.")
+                messagebox.showerror("Input Error", "Please enter at least one URL or enable default URLs.")
                 return
 
         model_mapping = {
             "Gemini (online)": "gemini",
-            "Mistral (Local)": "mistral",
             "Qwen (Local)": "qwen2.5:3b"
         }
         selected_model = model_mapping.get(mode_var.get(), mode_var.get().lower())
 
+        progress_text.config(state=tk.NORMAL)
+        progress_text.delete("1.0", tk.END)
+        progress_text.config(state=tk.DISABLED)
+        
         output_text.delete("1.0", tk.END)
         set_ui_state(False)
 
         def progress_callback(msg):
-            root.after(0, lambda: output_text.insert(tk.END, msg + "\n"))
+            def update_progress():
+                progress_text.config(state=tk.NORMAL)
+                progress_text.insert(tk.END, msg + "\n")
+                progress_text.see(tk.END)
+                progress_text.config(state=tk.DISABLED)
+            root.after(0, update_progress)
 
         def worker():
             try:
@@ -344,6 +379,11 @@ def run_research_ui():
                 output = f"Error: {exc}"
 
             def update_ui():
+                progress_text.config(state=tk.NORMAL)
+                progress_text.insert(tk.END, "\n✓ Complete")
+                progress_text.see(tk.END)
+                progress_text.config(state=tk.DISABLED)
+                
                 output_text.delete("1.0", tk.END)
                 output_text.insert(tk.END, output)
                 set_ui_state(True)
