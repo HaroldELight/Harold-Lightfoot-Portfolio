@@ -11,7 +11,7 @@ from memory_manager import MemoryManager
 class ChatbotGUI:
     def __init__(self):
         self.window = tk.Tk()
-        self.window.title("Qwen Chatbot - Personal Assistant")
+        self.window.title("JARVIS - Digital Butler")
         self.window.geometry("800x600")
         self.window.configure(bg='#f0f0f0')
         
@@ -54,7 +54,7 @@ class ChatbotGUI:
         header_frame = ttk.Frame(main_frame)
         header_frame.grid(row=0, column=0, columnspan=2, sticky=(tk.W, tk.E), pady=(0, 10))
         
-        ttk.Label(header_frame, text="🤖 Qwen Personal Assistant", font=('Arial', 14, 'bold')).pack(side=tk.LEFT)
+        ttk.Label(header_frame, text="🤖 Qwentin", font=('Arial', 14, 'bold')).pack(side=tk.LEFT)
         
         # Buttons
         button_frame = ttk.Frame(header_frame)
@@ -191,7 +191,7 @@ class ChatbotGUI:
             for msg in context_messages[-5:]:  # Include last 5 messages for context
                 full_prompt += f"{msg['role'].upper()}: {msg['content']}\n"
         
-        full_prompt += f"\n=== CURRENT MESSAGE ===\nUser: {prompt}\n\nPlease respond as a helpful personal assistant. Use the memory context to provide personalized responses and reference past conversations when relevant."
+        full_prompt += f"\n=== CURRENT MESSAGE ===\nUser: {prompt}\n\nYou are JARVIS - a formal AI Butler. Be concise and professional.\n\nKey traits:\n- Address user as 'Sir' or 'Madam'\n- Use formal, brief responses\n- Be direct and efficient\n- Maintain British etiquette\n- Stay calm and professional\n- Avoid unnecessary conversation\n\nUse memory context when relevant. Respond briefly and precisely."
         
         payload = {
             "model": self.model_name,
@@ -233,7 +233,7 @@ class ChatbotGUI:
         self.current_conversation_id = str(uuid.uuid4())
         self.chat_display.config(state=tk.NORMAL)
         self.chat_display.delete(1.0, tk.END)
-        self.add_message_to_display('assistant', 'Hello! I\'m your Qwen personal assistant. How can I help you today?')
+        self.add_message_to_display('assistant', 'Sir?')
         self.chat_display.config(state=tk.DISABLED)
         self.status_var.set(f"New conversation started: {self.current_conversation_id[:8]}...")
     
