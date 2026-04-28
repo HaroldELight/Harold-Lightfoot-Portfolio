@@ -1,0 +1,37 @@
+{
+  "id": "845557a1-cc1f-4425-be92-5792b18fa6b3",
+  "messages": [
+    {
+      "role": "user",
+      "content": "Hi. keep answer short",
+      "timestamp": "2026-04-28T09:03:21.724973"
+    },
+    {
+      "role": "assistant",
+      "content": "Hello! How can I assist you today?",
+      "timestamp": "2026-04-28T09:03:32.808496"
+    },
+    {
+      "role": "user",
+      "content": "what is my name",
+      "timestamp": "2026-04-28T09:03:41.921061"
+    },
+    {
+      "role": "assistant",
+      "content": "Your name would be whatever you go by or are officially named as. Could you provide more details?",
+      "timestamp": "2026-04-28T09:03:50.005243"
+    },
+    {
+      "role": "user",
+      "content": "Harold",
+      "timestamp": "2026-04-28T09:03:56.341422"
+    },
+    {
+      "role": "assistant",
+      "content": "Hello Harold! How can I assist you today?",
+      "timestamp": "2026-04-28T09:04:02.939120"
+    }
+  ],
+  "created_at": "2026-04-28T09:03:21.724968",
+  "updated_at": "2026-04-28T09:04:02.939135"
+}
