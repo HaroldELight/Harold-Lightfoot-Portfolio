@@ -1,0 +1,10 @@
+# Qwen Personal Assistant Requirements
+# Install with: pip install -r requirements.txt
+
+# Core GUI and HTTP
+tkinter  # Usually included with Python
+requests>=2.28.0
+
+# For future enhancements (optional)
+# numpy>=1.21.0
+# matplotlib>=3.5.0

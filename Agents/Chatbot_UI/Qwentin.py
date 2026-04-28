@@ -6,6 +6,7 @@ import os
 import uuid
 from datetime import datetime
 import threading
+from memory_manager import MemoryManager
 
 class ChatbotGUI:
     def __init__(self):
@@ -27,6 +28,9 @@ class ChatbotGUI:
         self.current_conversation_id = None
         self.conversations = {}
         self.current_response = ""
+        
+        # Initialize Memory Manager for continuous learning
+        self.memory_manager = MemoryManager(self.memory_dir)
         
         # Load existing conversations
         self.load_conversations()
@@ -58,6 +62,7 @@ class ChatbotGUI:
         
         ttk.Button(button_frame, text="New Chat", command=self.start_new_conversation).pack(side=tk.LEFT, padx=2)
         ttk.Button(button_frame, text="History", command=self.show_history).pack(side=tk.LEFT, padx=2)
+        ttk.Button(button_frame, text="Memory", command=self.show_memory_manager).pack(side=tk.LEFT, padx=2)
         ttk.Button(button_frame, text="Save", command=self.save_conversation).pack(side=tk.LEFT, padx=2)
         ttk.Button(button_frame, text="Load", command=self.load_conversation_dialog).pack(side=tk.LEFT, padx=2)
         
@@ -172,16 +177,21 @@ class ChatbotGUI:
         return messages[-self.max_context_messages:] if len(messages) > self.max_context_messages else messages
     
     def query_ollama(self, prompt, context_messages=[], callback=None):
-        """Query Ollama API with context and streaming support"""
-        # Build the full prompt with context
+        """Query Ollama API with intelligent context from MemoryManager"""
+        # Get relevant context from MemoryManager
+        memory_context = self.memory_manager.get_relevant_context(prompt)
+        
+        # Build the full prompt with intelligent context
         full_prompt = ""
+        if memory_context:
+            full_prompt += f"=== MEMORY CONTEXT ===\n{memory_context}\n\n"
+        
         if context_messages:
-            full_prompt = "Previous conversation:\n"
+            full_prompt += "=== CURRENT CONVERSATION ===\nPrevious conversation:\n"
             for msg in context_messages[-5:]:  # Include last 5 messages for context
                 full_prompt += f"{msg['role'].upper()}: {msg['content']}\n"
-            full_prompt += f"\nCurrent user message: {prompt}\n\nPlease respond to the current message, keeping the conversation context in mind:"
-        else:
-            full_prompt = prompt
+        
+        full_prompt += f"\n=== CURRENT MESSAGE ===\nUser: {prompt}\n\nPlease respond as a helpful personal assistant. Use the memory context to provide personalized responses and reference past conversations when relevant."
         
         payload = {
             "model": self.model_name,
@@ -290,6 +300,10 @@ class ChatbotGUI:
         """Finalize the streaming response"""
         # Add complete response to memory
         self.add_message(self.current_conversation_id, 'assistant', response)
+        
+        # Add conversation to MemoryManager for continuous learning
+        conversation = self.get_conversation(self.current_conversation_id)
+        self.memory_manager.add_conversation(self.current_conversation_id, conversation['messages'])
         
         # Re-enable send button and update status
         self.send_button.config(state=tk.NORMAL)
@@ -453,10 +467,186 @@ class ChatbotGUI:
         ttk.Button(button_frame, text="Delete", command=delete_selected).pack(side=tk.LEFT, padx=5)
         ttk.Button(button_frame, text="Close", command=history_window.destroy).pack(side=tk.RIGHT, padx=5)
     
+    def show_memory_manager(self):
+        """Show memory management interface"""
+        memory_window = tk.Toplevel(self.window)
+        memory_window.title("Memory Manager - Continuous Learning")
+        memory_window.geometry("800x600")
+        
+        # Create notebook for tabs
+        notebook = ttk.Notebook(memory_window)
+        notebook.pack(fill=tk.BOTH, expand=True, padx=10, pady=10)
+        
+        # Stats tab
+        stats_frame = ttk.Frame(notebook)
+        notebook.add(stats_frame, text="Memory Stats")
+        
+        stats = self.memory_manager.get_memory_stats()
+        
+        stats_text = f"""
+🧠 Personal Assistant Memory Statistics
+
+Total Conversations: {stats['total_conversations']}
+Total Messages: {stats['total_messages']}
+Personal Facts Learned: {stats['personal_facts_count']}
+Topics Discussed: {stats['topics_count']}
+
+User Name: {stats['user_name'] or 'Not learned yet'}
+Last Updated: {stats['last_updated'] or 'Never'}
+
+📚 Memory Files:
+• global_memory.json - All conversations
+• personal_facts.json - User preferences and facts
+• topics.json - Topic discussions
+        """
+        
+        stats_display = scrolledtext.ScrolledText(stats_frame, wrap=tk.WORD, width=80, height=20)
+        stats_display.pack(fill=tk.BOTH, expand=True, padx=10, pady=10)
+        stats_display.insert(tk.END, stats_text)
+        stats_display.config(state=tk.DISABLED)
+        
+        # Personal Facts tab
+        facts_frame = ttk.Frame(notebook)
+        notebook.add(facts_frame, text="Personal Facts")
+        
+        facts_display = scrolledtext.ScrolledText(facts_frame, wrap=tk.WORD, width=80, height=20)
+        facts_display.pack(fill=tk.BOTH, expand=True, padx=10, pady=10)
+        
+        facts_text = "=== PERSONAL INFORMATION ===\n\n"
+        if self.memory_manager.personal_facts["name"]:
+            facts_text += f"Name: {self.memory_manager.personal_facts['name']}\n\n"
+        
+        facts_text += "=== PREFERENCES ===\n\n"
+        preferences = self.memory_manager.personal_facts["preferences"]
+        
+        if preferences.get("likes"):
+            facts_text += "Likes:\n"
+            for like in preferences["likes"]:
+                facts_text += f"  • {like}\n"
+            facts_text += "\n"
+        
+        if preferences.get("dislikes"):
+            facts_text += "Dislikes:\n"
+            for dislike in preferences["dislikes"]:
+                facts_text += f"  • {dislike}\n"
+            facts_text += "\n"
+        
+        facts_text += "=== FACTS LEARNED ===\n\n"
+        for fact_key, fact_data in self.memory_manager.personal_facts["facts_learned"].items():
+            facts_text += f"• {fact_data['fact']}\n"
+            facts_text += f"  (Learned: {fact_data['timestamp'][:10]})\n\n"
+        
+        facts_display.insert(tk.END, facts_text)
+        facts_display.config(state=tk.DISABLED)
+        
+        # Topics tab
+        topics_frame = ttk.Frame(notebook)
+        notebook.add(topics_frame, text="Topics")
+        
+        topics_display = scrolledtext.ScrolledText(topics_frame, wrap=tk.WORD, width=80, height=20)
+        topics_display.pack(fill=tk.BOTH, expand=True, padx=10, pady=10)
+        
+        topics_text = "=== TOPICS DISCUSSED ===\n\n"
+        for topic, data in self.memory_manager.topics["topics"].items():
+            topics_text += f"📁 {topic.title()}\n"
+            topics_text += f"   Messages: {data['message_count']}\n"
+            topics_text += f"   Last discussed: {data['last_discussed'][:10] if data['last_discussed'] else 'Never'}\n"
+            
+            if data.get("key_points"):
+                topics_text += "   Recent points:\n"
+                for point in data["key_points"][-3:]:  # Show last 3 points
+                    topics_text += f"     • {point['content'][:80]}...\n"
+            topics_text += "\n"
+        
+        topics_display.insert(tk.END, topics_text)
+        topics_display.config(state=tk.DISABLED)
+        
+        # Search tab
+        search_frame = ttk.Frame(notebook)
+        notebook.add(search_frame, text="Search Memory")
+        
+        # Search controls
+        search_controls = ttk.Frame(search_frame)
+        search_controls.pack(fill=tk.X, padx=10, pady=10)
+        
+        ttk.Label(search_controls, text="Search:").pack(side=tk.LEFT, padx=5)
+        search_entry = ttk.Entry(search_controls, width=40)
+        search_entry.pack(side=tk.LEFT, padx=5)
+        search_entry.bind('<Return>', lambda e: self.search_memory_callback(search_entry.get(), search_results))
+        
+        ttk.Button(search_controls, text="Search", 
+                  command=lambda: self.search_memory_callback(search_entry.get(), search_results)).pack(side=tk.LEFT, padx=5)
+        
+        # Search results
+        search_results = scrolledtext.ScrolledText(search_frame, wrap=tk.WORD, width=80, height=15)
+        search_results.pack(fill=tk.BOTH, expand=True, padx=10, pady=10)
+        
+        # Buttons
+        button_frame = ttk.Frame(memory_window)
+        button_frame.pack(fill=tk.X, padx=10, pady=5)
+        
+        ttk.Button(button_frame, text="Refresh", command=lambda: self.show_memory_manager()).pack(side=tk.LEFT, padx=5)
+        ttk.Button(button_frame, text="Close", command=memory_window.destroy).pack(side=tk.RIGHT, padx=5)
+    
+    def search_memory_callback(self, query, results_display):
+        """Callback for memory search"""
+        if not query.strip():
+            return
+        
+        results = self.memory_manager.search_memory(query, limit=10)
+        
+        results_display.config(state=tk.NORMAL)
+        results_display.delete(1.0, tk.END)
+        
+        if results:
+            results_display.insert(tk.END, f"🔍 Search Results for: '{query}'\n\n")
+            
+            for i, result in enumerate(results, 1):
+                results_display.insert(tk.END, f"📄 Result {i} (Relevance: {result['relevance_score']})\n")
+                results_display.insert(tk.END, f"Conversation ID: {result['conversation_id'][:8]}...\n")
+                results_display.insert(tk.END, f"Date: {result['created_at'][:10]}\n\n")
+                
+                for msg in result['matching_messages']:
+                    results_display.insert(tk.END, f"{msg['role'].title()}: {msg['content']}\n\n")
+                
+                results_display.insert(tk.END, "-" * 50 + "\n\n")
+        else:
+            results_display.insert(tk.END, f"🔍 No results found for: '{query}'")
+        
+        results_display.config(state=tk.DISABLED)
+    
     def run(self):
         """Start the GUI"""
         self.window.mainloop()
 
+def main():
+    """Launch the Personal Assistant GUI with error handling"""
+    try:
+        # Create and run the GUI
+        chatbot_gui = ChatbotGUI()
+        chatbot_gui.run()
+        
+    except ImportError as e:
+        # Show error in GUI if import fails
+        root = tk.Tk()
+        root.withdraw()  # Hide main window
+        messagebox.showerror("Import Error", 
+                           f"Failed to import required modules:\n{e}\n\n"
+                           "Please ensure all required files are present:\n"
+                           "- memory_manager.py\n"
+                           "- requirements.txt installed")
+        sys.exit(1)
+        
+    except Exception as e:
+        # Show error in GUI if anything else fails
+        root = tk.Tk()
+        root.withdraw()  # Hide main window
+        messagebox.showerror("Startup Error", 
+                           f"Failed to start Personal Assistant:\n{e}\n\n"
+                           "Please check:\n"
+                           "- Ollama is running (ollama serve)\n"
+                           "- Qwen model is installed (ollama pull qwen2.5:3b)")
+        sys.exit(1)
+
 if __name__ == "__main__":
-    chatbot_gui = ChatbotGUI()
-    chatbot_gui.run()
+    main()
