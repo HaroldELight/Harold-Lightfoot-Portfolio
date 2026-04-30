@@ -806,8 +806,23 @@ def internal_error(error):
     return render_template('500.html'), 500
 
 if __name__ == '__main__':
+    import webbrowser
+    import threading
+    import time
+    
+    def open_browser():
+        """Open browser after a short delay to ensure server is running"""
+        time.sleep(1.5)  # Wait for server to start
+        webbrowser.open('http://localhost:5000')
+    
     print("🚀 Starting Mock Email Bot (for testing)")
     print("📧 This version uses mock data - no real credentials needed!")
-    print("🌐 Access the web interface at: http://localhost:5000")
+    print("🌐 Opening web interface at: http://localhost:5000")
     print("💭 Try asking: 'Show me emails about meetings' or 'What meetings do I have?'")
-    app.run(debug=True, host='0.0.0.0', port=5000)
+    
+    # Start browser in a separate thread
+    browser_thread = threading.Thread(target=open_browser)
+    browser_thread.daemon = True
+    browser_thread.start()
+    
+    app.run(debug=True, host='0.0.0.0', port=5000, use_reloader=False)

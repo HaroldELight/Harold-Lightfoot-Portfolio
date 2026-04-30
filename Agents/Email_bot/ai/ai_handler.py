@@ -6,6 +6,85 @@ from typing import List, Dict, Any, Optional
 from core.database import db
 from config.settings import Config
 
+# JSON schema for meeting information validation
+MEETING_INFO_SCHEMA = {
+    "type": "object",
+    "properties": {
+        "title": {"type": "string"},
+        "start_time": {"type": ["string", "null"]},
+        "end_time": {"type": ["string", "null"]},
+        "duration_minutes": {"type": ["integer", "null"]},
+        "location": {"type": ["string", "null"]},
+        "attendees": {"type": "array", "items": {"type": "string"}},
+        "description": {"type": "string"},
+        "confidence_score": {"type": "number", "minimum": 0, "maximum": 100}
+    },
+    "required": ["title", "description", "confidence_score"],
+    "additionalProperties": False
+}
+
+# JSON schema for email action suggestions
+ACTION_SUGGESTION_SCHEMA = {
+    "type": "object",
+    "properties": {
+        "action_type": {"type": "string", "enum": ["reply", "archive", "flag", "calendar", "none"]},
+        "priority": {"type": "string", "enum": ["high", "medium", "low"]},
+        "brief_reason": {"type": "string"},
+        "calendar_suggestion": {"type": ["object", "null"]}
+    },
+    "required": ["action_type", "priority", "brief_reason"],
+    "additionalProperties": False
+}
+
+def validate_json_schema(data: Dict, schema: Dict) -> bool:
+    """Simple JSON schema validation"""
+    try:
+        # Check required properties
+        for prop in schema.get("required", []):
+            if prop not in data:
+                return False
+        
+        # Check property types
+        for prop, prop_schema in schema.get("properties", {}).items():
+            if prop in data:
+                expected_type = prop_schema.get("type")
+                if isinstance(expected_type, list):
+                    # Allow multiple types
+                    if type(data[prop]).__name__ not in expected_type:
+                        return False
+                elif expected_type == "array":
+                    if not isinstance(data[prop], list):
+                        return False
+                elif expected_type == "object":
+                    if not isinstance(data[prop], dict):
+                        return False
+                elif expected_type == "number":
+                    if not isinstance(data[prop], (int, float)):
+                        return False
+                elif expected_type == "null":
+                    if data[prop] is not None:
+                        return False
+                elif expected_type and type(data[prop]).__name__ != expected_type:
+                    return False
+        
+        # Check enum values
+        for prop, prop_schema in schema.get("properties", {}).items():
+            if prop in data and "enum" in prop_schema:
+                if data[prop] not in prop_schema["enum"]:
+                    return False
+        
+        # Check numeric ranges
+        for prop, prop_schema in schema.get("properties", {}).items():
+            if prop in data and isinstance(data[prop], (int, float)):
+                if "minimum" in prop_schema and data[prop] < prop_schema["minimum"]:
+                    return False
+                if "maximum" in prop_schema and data[prop] > prop_schema["maximum"]:
+                    return False
+        
+        return True
+    except Exception:
+        return False
+
 class AIHandler:
     """Handles AI interactions with local Qwen model via Ollama"""
     
@@ -143,18 +222,22 @@ JSON Response:"""
             # Try to parse JSON response
             meeting_info = json.loads(response)
             
-            # Validate and clean the data
+            # Validate against schema before processing
             if meeting_info and isinstance(meeting_info, dict):
-                return {
-                    'title': meeting_info.get('title', 'Meeting'),
-                    'start_time': meeting_info.get('start_time'),
-                    'end_time': meeting_info.get('end_time'),
-                    'duration_minutes': meeting_info.get('duration_minutes'),
-                    'location': meeting_info.get('location'),
-                    'attendees': meeting_info.get('attendees', []),
-                    'description': meeting_info.get('description', ''),
-                    'confidence_score': min(100, max(0, meeting_info.get('confidence_score', 0)))
-                }
+                if validate_json_schema(meeting_info, MEETING_INFO_SCHEMA):
+                    return {
+                        'title': meeting_info.get('title', 'Meeting'),
+                        'start_time': meeting_info.get('start_time'),
+                        'end_time': meeting_info.get('end_time'),
+                        'duration_minutes': meeting_info.get('duration_minutes'),
+                        'location': meeting_info.get('location'),
+                        'attendees': meeting_info.get('attendees', []),
+                        'description': meeting_info.get('description', ''),
+                        'confidence_score': min(100, max(0, meeting_info.get('confidence_score', 0)))
+                    }
+                else:
+                    print(f"AI response failed schema validation: {response}")
+                    return None
         
         except json.JSONDecodeError:
             print(f"Failed to parse AI response as JSON: {response}")
@@ -220,7 +303,8 @@ JSON Response:"""
             
             try:
                 action_data = json.loads(response)
-                if action_data and isinstance(action_data, dict):
+                # Validate against schema before processing
+                if action_data and isinstance(action_data, dict) and validate_json_schema(action_data, ACTION_SUGGESTION_SCHEMA):
                     actions.append({
                         'email_id': email.get('id'),
                         'gmail_id': email.get('gmail_id'),
@@ -229,6 +313,8 @@ JSON Response:"""
                         'reason': action_data.get('brief_reason', ''),
                         'calendar_suggestion': action_data.get('calendar_suggestion')
                     })
+                else:
+                    print(f"AI action suggestion failed schema validation for email {email.get('id')}: {response}")
             except json.JSONDecodeError:
                 print(f"Failed to parse action suggestion for email {email.get('id')}")
         
