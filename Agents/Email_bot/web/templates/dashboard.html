@@ -1,0 +1,338 @@
+{% extends "base.html" %}
+
+{% block title %}Dashboard - Email Bot{% endblock %}
+
+{% block content %}
+<div class="row">
+    <div class="col-md-12">
+        <h1 class="mb-4">
+            <i class="fas fa-tachometer-alt"></i> Dashboard
+        </h1>
+    </div>
+</div>
+
+<div class="row mb-4">
+    <div class="col-md-3">
+        <div class="card bg-primary text-white">
+            <div class="card-body">
+                <div class="d-flex justify-content-between">
+                    <div>
+                        <h4 class="card-title">{{ email_count }}</h4>
+                        <p class="card-text">Total Emails</p>
+                    </div>
+                    <div class="align-self-center">
+                        <i class="fas fa-envelope fa-2x"></i>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <div class="col-md-3">
+        <div class="card bg-warning text-white">
+            <div class="card-body">
+                <div class="d-flex justify-content-between">
+                    <div>
+                        <h4 class="card-title">{{ unread_count }}</h4>
+                        <p class="card-text">Unread Emails</p>
+                    </div>
+                    <div class="align-self-center">
+                        <i class="fas fa-envelope-open fa-2x"></i>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <div class="col-md-3">
+        <div class="card bg-success text-white">
+            <div class="card-body">
+                <div class="d-flex justify-content-between">
+                    <div>
+                        <h4 class="card-title">{{ calendar_suggestions|length }}</h4>
+                        <p class="card-text">Event Suggestions</p>
+                    </div>
+                    <div class="align-self-center">
+                        <i class="fas fa-calendar-plus fa-2x"></i>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <div class="col-md-3">
+        <div class="card bg-info text-white">
+            <div class="card-body">
+                <div class="d-flex justify-content-between">
+                    <div>
+                        <h4 class="card-title">
+                            <i class="fas fa-robot"></i>
+                        </h4>
+                        <p class="card-text">AI Assistant</p>
+                    </div>
+                    <div class="align-self-center">
+                        <a href="{{ url_for('chat') }}" class="btn btn-light btn-sm">
+                            <i class="fas fa-comments"></i> Chat
+                        </a>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="row">
+    <div class="col-md-8">
+        <div class="card">
+            <div class="card-header d-flex justify-content-between align-items-center">
+                <h5 class="mb-0">
+                    <i class="fas fa-envelope"></i> Recent Emails
+                </h5>
+                <button class="btn btn-primary btn-sm" onclick="fetchEmails()">
+                    <i class="fas fa-sync-alt"></i> Fetch New
+                </button>
+            </div>
+            <div class="card-body">
+                {% if recent_emails %}
+                    <div class="list-group">
+                        {% for email in recent_emails %}
+                        <div class="list-group-item list-group-item-action">
+                            <div class="d-flex w-100 justify-content-between">
+                                <h6 class="mb-1">{{ email.subject }}</h6>
+                                <small>{{ email.date_received.strftime('%b %d, %Y %I:%M %p') if email.date_received else '' }}</small>
+                            </div>
+                            <p class="mb-1">{{ email.sender }}</p>
+                            <small>{{ email.snippet[:100] }}{% if email.snippet|length > 100 %}...{% endif %}</small>
+                            <div class="mt-2">
+                                <a href="{{ url_for('email_detail', email_id=email.id) }}" class="btn btn-sm btn-outline-primary">
+                                    <i class="fas fa-eye"></i> View
+                                </a>
+                                {% if not email.is_read %}
+                                    <span class="badge bg-warning">Unread</span>
+                                {% endif %}
+                            </div>
+                        </div>
+                        {% endfor %}
+                    </div>
+                    <div class="mt-3">
+                        <a href="{{ url_for('emails') }}" class="btn btn-primary">
+                            <i class="fas fa-list"></i> View All Emails
+                        </a>
+                    </div>
+                {% else %}
+                    <div class="text-center py-4">
+                        <i class="fas fa-inbox fa-3x text-muted mb-3"></i>
+                        <p class="text-muted">No emails found. Click "Fetch New" to get emails from Gmail.</p>
+                    </div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+    
+    <div class="col-md-4">
+        <div class="card">
+            <div class="card-header">
+                <h5 class="mb-0">
+                    <i class="fas fa-calendar-plus"></i> Calendar Suggestions
+                </h5>
+            </div>
+            <div class="card-body">
+                {% if calendar_suggestions %}
+                    {% for suggestion in calendar_suggestions %}
+                    <div class="alert alert-info">
+                        <h6 class="alert-heading">{{ suggestion.title }}</h6>
+                        <p class="mb-1">
+                            <small>
+                                <i class="fas fa-clock"></i> 
+                                {{ suggestion.start_time.strftime('%b %d, %Y %I:%M %p') if suggestion.start_time else 'Time not set' }}
+                            </small>
+                        </p>
+                        {% if suggestion.location %}
+                        <p class="mb-1">
+                            <small>
+                                <i class="fas fa-map-marker-alt"></i> {{ suggestion.location }}
+                            </small>
+                        </p>
+                        {% endif %}
+                        <div class="mt-2">
+                            <button class="btn btn-success btn-sm" data-suggestion-id="{{ suggestion.id }}" onclick="createEvent(this.dataset.suggestionId)">
+                                <i class="fas fa-check"></i> Create
+                            </button>
+                            <button class="btn btn-secondary btn-sm" data-suggestion-id="{{ suggestion.id }}" onclick="rejectSuggestion(this.dataset.suggestionId)">
+                                <i class="fas fa-times"></i> Reject
+                            </button>
+                        </div>
+                    </div>
+                    {% endfor %}
+                {% else %}
+                    <div class="text-center py-3">
+                        <i class="fas fa-calendar fa-2x text-muted mb-2"></i>
+                        <p class="text-muted small">No calendar suggestions yet.</p>
+                    </div>
+                {% endif %}
+            </div>
+        </div>
+        
+        <div class="card mt-3">
+            <div class="card-header">
+                <h5 class="mb-0">
+                    <i class="fas fa-magic"></i> Quick Actions
+                </h5>
+            </div>
+            <div class="card-body">
+                <div class="d-grid gap-2">
+                    <button class="btn btn-outline-primary" onclick="summarizeEmails()">
+                        <i class="fas fa-compress-alt"></i> Summarize Emails
+                    </button>
+                    <a href="{{ url_for('calendar') }}" class="btn btn-outline-success">
+                        <i class="fas fa-calendar"></i> View Calendar
+                    </a>
+                    <a href="{{ url_for('chat') }}" class="btn btn-outline-info">
+                        <i class="fas fa-comments"></i> Ask AI Assistant
+                    </a>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Summary Modal -->
+<div class="modal fade" id="summaryModal" tabindex="-1">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Email Summary</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <div id="summaryContent">
+                    <div class="text-center">
+                        <div class="spinner-border" role="status">
+                            <span class="visually-hidden">Loading...</span>
+                        </div>
+                        <p class="mt-2">Generating summary...</p>
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+function fetchEmails() {
+    const btn = event.target;
+    const originalText = btn.innerHTML;
+    btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Fetching...';
+    btn.disabled = true;
+    
+    fetch('/api/fetch_emails', {
+        method: 'POST'
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            showAlert(data.message, 'success');
+            setTimeout(() => location.reload(), 2000);
+        } else {
+            showAlert(data.error || 'Failed to fetch emails', 'error');
+        }
+    })
+    .catch(error => {
+        showAlert('Error: ' + error.message, 'error');
+    })
+    .finally(() => {
+        btn.innerHTML = originalText;
+        btn.disabled = false;
+    });
+}
+
+function createEvent(suggestionId) {
+    fetch('/api/create_event', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+            suggestion_id: suggestionId
+        })
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            showAlert(data.message, 'success');
+            setTimeout(() => location.reload(), 2000);
+        } else {
+            showAlert(data.error || 'Failed to create event', 'error');
+        }
+    })
+    .catch(error => {
+        showAlert('Error: ' + error.message, 'error');
+    });
+}
+
+function rejectSuggestion(suggestionId) {
+    fetch('/api/reject_suggestion', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+            suggestion_id: suggestionId
+        })
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            showAlert(data.message, 'success');
+            setTimeout(() => location.reload(), 2000);
+        } else {
+            showAlert(data.error || 'Failed to reject suggestion', 'error');
+        }
+    })
+    .catch(error => {
+        showAlert('Error: ' + error.message, 'error');
+    });
+}
+
+function summarizeEmails() {
+    const modal = new bootstrap.Modal(document.getElementById('summaryModal'));
+    modal.show();
+    
+    fetch('/api/summarize_emails', {
+        method: 'POST'
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            document.getElementById('summaryContent').innerHTML = `<pre class="summary-text">${data.summary}</pre>`;
+        } else {
+            document.getElementById('summaryContent').innerHTML = `<div class="alert alert-danger">${data.error || 'Failed to generate summary'}</div>`;
+        }
+    })
+    .catch(error => {
+        document.getElementById('summaryContent').innerHTML = `<div class="alert alert-danger">Error: ${error.message}</div>`;
+    });
+}
+
+function showAlert(message, type) {
+    const alertDiv = document.createElement('div');
+    alertDiv.className = `alert alert-${type === 'error' ? 'danger' : type} alert-dismissible fade show`;
+    alertDiv.innerHTML = `
+        ${message}
+        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+    `;
+    
+    const container = document.querySelector('main .container');
+    container.insertBefore(alertDiv, container.firstChild);
+    
+    setTimeout(() => {
+        alertDiv.remove();
+    }, 5000);
+}
+</script>
+{% endblock %}

@@ -1,0 +1,173 @@
+{% extends "base.html" %}
+
+{% block title %}Emails - Email Bot{% endblock %}
+
+{% block content %}
+<div class="row">
+    <div class="col-md-12">
+        <div class="d-flex justify-content-between align-items-center mb-4">
+            <h1>
+                <i class="fas fa-envelope"></i> Emails
+            </h1>
+            <button class="btn btn-primary" onclick="fetchEmails()">
+                <i class="fas fa-sync-alt"></i> Fetch New Emails
+            </button>
+        </div>
+        
+        <!-- Search Bar -->
+        <div class="card mb-4">
+            <div class="card-body">
+                <form method="GET" class="d-flex">
+                    <input type="text" name="search" class="form-control me-2" placeholder="Search emails..." value="{{ search }}">
+                    <button type="submit" class="btn btn-outline-primary">
+                        <i class="fas fa-search"></i> Search
+                    </button>
+                    {% if search %}
+                    <a href="{{ url_for('emails') }}" class="btn btn-outline-secondary ms-2">
+                        <i class="fas fa-times"></i> Clear
+                    </a>
+                    {% endif %}
+                </form>
+            </div>
+        </div>
+        
+        <!-- Email List -->
+        <div class="card">
+            <div class="card-header">
+                <h5 class="mb-0">
+                    {% if search %}
+                        <i class="fas fa-search"></i> Search Results
+                    {% else %}
+                        <i class="fas fa-inbox"></i> All Emails
+                    {% endif %}
+                </h5>
+            </div>
+            <div class="card-body p-0">
+                {% if emails %}
+                    <div class="list-group list-group-flush">
+                        {% for email in emails %}
+                        <div class="list-group-item list-group-item-action">
+                            <div class="d-flex w-100 justify-content-between">
+                                <div class="flex-grow-1">
+                                    <div class="d-flex justify-content-between align-items-start">
+                                        <h6 class="mb-1 {% if not email.is_read %}fw-bold{% endif %}">
+                                            {{ email.subject }}
+                                        </h6>
+                                        <small class="text-muted">
+                                            {{ email.date_received.strftime('%b %d, %Y %I:%M %p') if email.date_received else '' }}
+                                        </small>
+                                    </div>
+                                    <p class="mb-1 text-muted">{{ email.sender }}</p>
+                                    <p class="mb-2">{{ email.snippet[:200] }}{% if email.snippet|length > 200 %}...{% endif %}</p>
+                                    <div class="d-flex align-items-center">
+                                        <a href="{{ url_for('email_detail', email_id=email.id) }}" class="btn btn-sm btn-outline-primary">
+                                            <i class="fas fa-eye"></i> View
+                                        </a>
+                                        {% if not email.is_read %}
+                                            <span class="badge bg-warning ms-2">Unread</span>
+                                        {% endif %}
+                                        {% if email.is_starred %}
+                                            <span class="badge bg-info ms-2">
+                                                <i class="fas fa-star"></i> Starred
+                                            </span>
+                                        {% endif %}
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        {% endfor %}
+                    </div>
+                    
+                    <!-- Pagination -->
+                    <div class="card-footer">
+                        <nav>
+                            <ul class="pagination justify-content-center mb-0">
+                                {% if page > 1 %}
+                                <li class="page-item">
+                                    <a class="page-link" href="{{ url_for('emails', page=page-1, search=search) }}">Previous</a>
+                                </li>
+                                {% endif %}
+                                
+                                <li class="page-item active">
+                                    <span class="page-link">Page {{ page }}</span>
+                                </li>
+                                
+                                {% if emails|length == 20 %}
+                                <li class="page-item">
+                                    <a class="page-link" href="{{ url_for('emails', page=page+1, search=search) }}">Next</a>
+                                </li>
+                                {% endif %}
+                            </ul>
+                        </nav>
+                    </div>
+                {% else %}
+                    <div class="text-center py-5">
+                        <i class="fas fa-inbox fa-3x text-muted mb-3"></i>
+                        <h5 class="text-muted">
+                            {% if search %}
+                                No emails found matching your search.
+                            {% else %}
+                                No emails found.
+                            {% endif %}
+                        </h5>
+                        <p class="text-muted">
+                            {% if search %}
+                                Try a different search term or <a href="{{ url_for('emails') }}">view all emails</a>.
+                            {% else %}
+                                Click "Fetch New Emails" to get emails from Gmail.
+                            {% endif %}
+                        </p>
+                    </div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+function fetchEmails() {
+    const btn = event.target;
+    const originalText = btn.innerHTML;
+    btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Fetching...';
+    btn.disabled = true;
+    
+    fetch('/api/fetch_emails', {
+        method: 'POST'
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            showAlert(data.message, 'success');
+            setTimeout(() => location.reload(), 2000);
+        } else {
+            showAlert(data.error || 'Failed to fetch emails', 'error');
+        }
+    })
+    .catch(error => {
+        showAlert('Error: ' + error.message, 'error');
+    })
+    .finally(() => {
+        btn.innerHTML = originalText;
+        btn.disabled = false;
+    });
+}
+
+function showAlert(message, type) {
+    const alertDiv = document.createElement('div');
+    alertDiv.className = `alert alert-${type === 'error' ? 'danger' : type} alert-dismissible fade show`;
+    alertDiv.innerHTML = `
+        ${message}
+        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+    `;
+    
+    const container = document.querySelector('main .container');
+    container.insertBefore(alertDiv, container.firstChild);
+    
+    setTimeout(() => {
+        alertDiv.remove();
+    }, 5000);
+}
+</script>
+{% endblock %}

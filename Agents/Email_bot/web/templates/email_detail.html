@@ -1,0 +1,471 @@
+{% extends "base.html" %}
+
+{% block title %}{{ email.subject }} - Email Bot{% endblock %}
+
+{% block content %}
+<div class="row">
+    <div class="col-md-12">
+        <div class="d-flex justify-content-between align-items-center mb-4">
+            <h1>
+                <i class="fas fa-envelope-open"></i> Email Details
+            </h1>
+            <div>
+                <a href="{{ url_for('emails') }}" class="btn btn-outline-secondary">
+                    <i class="fas fa-arrow-left"></i> Back to Emails
+                </a>
+            </div>
+        </div>
+        
+        <div class="card">
+            <div class="card-header">
+                <div class="d-flex justify-content-between align-items-center">
+                    <h5 class="mb-0">{{ email.subject }}</h5>
+                    <div>
+                        {% if email.is_starred %}
+                            <span class="badge bg-info">
+                                <i class="fas fa-star"></i> Starred
+                            </span>
+                        {% endif %}
+                        {% if not email.is_read %}
+                            <span class="badge bg-warning">Unread</span>
+                        {% endif %}
+                    </div>
+                </div>
+            </div>
+            <div class="card-body">
+                <!-- Email Metadata -->
+                <div class="row mb-3">
+                    <div class="col-md-6">
+                        <strong>From:</strong> {{ email.sender }}
+                    </div>
+                    <div class="col-md-6">
+                        <strong>Date:</strong> {{ email.date_received.strftime('%B %d, %Y at %I:%M %p') if email.date_received else '' }}
+                    </div>
+                </div>
+                
+                {% if email.recipients %}
+                <div class="row mb-3">
+                    <div class="col-md-12">
+                        <strong>To:</strong> {{ email.recipients }}
+                    </div>
+                </div>
+                {% endif %}
+                
+                <hr>
+                
+                <!-- Email Content -->
+                <div class="email-content">
+                    {% if email.body_html %}
+                        {{ email.body_html|safe }}
+                    {% elif email.body_text %}
+                        <pre class="email-text">{{ email.body_text }}</pre>
+                    {% else %}
+                        <p class="text-muted">No content available</p>
+                    {% endif %}
+                </div>
+                
+                <hr>
+                
+                <!-- Action Buttons -->
+                <div class="d-flex gap-2">
+                    <button class="btn btn-primary" onclick="askAboutEmail()" data-email-id="{{ email.id }}">
+                        <i class="fas fa-question-circle"></i> Ask About This Email
+                    </button>
+                    <button class="btn btn-success" onclick="suggestEvent()" data-email-id="{{ email.id }}">
+                        <i class="fas fa-calendar-plus"></i> Suggest Calendar Event
+                    </button>
+                    <button class="btn btn-outline-info" onclick="summarizeEmail()" data-email-id="{{ email.id }}">
+                        <i class="fas fa-compress-alt"></i> Summarize
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Chat Modal -->
+<div class="modal fade" id="chatModal" tabindex="-1">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">
+                    <i class="fas fa-comments"></i> Ask About This Email
+                </h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <div id="chatMessages" class="mb-3" style="max-height: 300px; overflow-y: auto;">
+                    <div class="text-muted text-center">
+                        Ask questions about this email using AI
+                    </div>
+                </div>
+                <div class="input-group">
+                    <input type="text" id="chatInput" class="form-control" placeholder="Ask a question about this email..." 
+                           onkeypress="if(event.key === 'Enter') sendMessage()">
+                    <button class="btn btn-primary" onclick="sendMessage()">
+                        <i class="fas fa-paper-plane"></i> Send
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+// Store email ID for use in JavaScript
+window.currentEmailId = {{ email.id | tojson }};
+</script>
+
+<!-- Summary Modal -->
+<div class="modal fade" id="summaryModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">
+                    <i class="fas fa-compress-alt"></i> Email Summary
+                </h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <div id="summaryContent">
+                    <div class="text-center">
+                        <div class="spinner-border" role="status">
+                            <span class="visually-hidden">Loading...</span>
+                        </div>
+                        <p class="mt-2">Generating summary...</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Event Suggestion Modal -->
+<div class="modal fade" id="eventModal" tabindex="-1">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">
+                    <i class="fas fa-calendar-plus"></i> Calendar Event Suggestion
+                </h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <div id="eventContent">
+                    <div class="text-center">
+                        <div class="spinner-border" role="status">
+                            <span class="visually-hidden">Loading...</span>
+                        </div>
+                        <p class="mt-2">Analyzing email for meeting information...</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+let sessionId = '{{ session_id or "" }}';
+
+function askAboutEmail() {
+    const modal = new bootstrap.Modal(document.getElementById('chatModal'));
+    modal.show();
+    document.getElementById('chatInput').focus();
+}
+
+function sendMessage() {
+    const input = document.getElementById('chatInput');
+    const message = input.value.trim();
+    
+    if (!message) return;
+    
+    const messagesDiv = document.getElementById('chatMessages');
+    
+    // Add user message
+    messagesDiv.innerHTML += `
+        <div class="mb-2">
+            <div class="bg-primary text-white p-2 rounded">
+                <strong>You:</strong> ${message}
+            </div>
+        </div>
+    `;
+    
+    input.value = '';
+    
+    // Add loading indicator
+    const aiMessageDiv = document.createElement('div');
+    aiMessageDiv.className = 'mb-2';
+    aiMessageDiv.innerHTML = `
+        <div class="bg-light p-2 rounded">
+            <strong>AI:</strong> 
+            <span class="spinner-border spinner-border-sm" role="status"></span>
+            Thinking...
+        </div>
+    `;
+    messagesDiv.appendChild(aiMessageDiv);
+    messagesDiv.scrollTop = messagesDiv.scrollHeight;
+    
+    // Send the actual request
+    fetch('/api/chat', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+            message: message,
+            session_id: sessionId,
+            email_id: window.currentEmailId,
+            stream: true
+        })
+    })
+    .then(response => {
+        if (!response.ok) {
+            throw new Error('Network response was not ok');
+        }
+        
+        // Handle streaming response
+        const reader = response.body.getReader();
+        const decoder = new TextDecoder();
+        let aiContent = '';
+        
+        function updateAIMessage(content) {
+            aiContent += content;
+            const aiTextElement = aiMessageDiv.querySelector('div');
+            aiTextElement.innerHTML = `<strong>AI:</strong> ${aiContent}`;
+            messagesDiv.scrollTop = messagesDiv.scrollHeight;
+        }
+        
+        function readStream() {
+            reader.read().then(({ done, value }) => {
+                if (done) {
+                    return;
+                }
+                
+                const chunk = decoder.decode(value, { stream: true });
+                const lines = chunk.split('\n');
+                
+                for (const line of lines) {
+                    if (line.startsWith('data: ')) {
+                        try {
+                            const data = JSON.parse(line.slice(6));
+                            if (data.content) {
+                                updateAIMessage(data.content);
+                            } else if (data.error) {
+                                aiTextElement.innerHTML = `<strong>Error:</strong> ${data.error}`;
+                                aiTextElement.className = 'bg-danger text-white p-2 rounded';
+                            } else if (data.done) {
+                                return;
+                            }
+                        } catch (e) {
+                            console.error('Error parsing SSE data:', e);
+                        }
+                    }
+                }
+                
+                readStream();
+            }).catch(error => {
+                console.error('Stream reading error:', error);
+                const aiTextElement = aiMessageDiv.querySelector('div');
+                aiTextElement.innerHTML = `<strong>Error:</strong> ${error.message}`;
+                aiTextElement.className = 'bg-danger text-white p-2 rounded';
+            });
+        }
+        
+        readStream();
+    })
+    .catch(error => {
+        console.error('Fetch error:', error);
+        const aiTextElement = aiMessageDiv.querySelector('div');
+        aiTextElement.innerHTML = `<strong>Error:</strong> ${error.message}`;
+        aiTextElement.className = 'bg-danger text-white p-2 rounded';
+    });
+}
+
+function summarizeEmail() {
+    const modal = new bootstrap.Modal(document.getElementById('summaryModal'));
+    modal.show();
+    
+    // Email data will be accessed via data attributes
+    
+    fetch('/api/summarize_emails', {
+        method: 'POST'
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            document.getElementById('summaryContent').innerHTML = `
+                <div class="alert alert-info">
+                    <h6>Email Summary</h6>
+                    <p class="mb-0">${data.summary}</p>
+                </div>
+            `;
+        } else {
+            document.getElementById('summaryContent').innerHTML = `
+                <div class="alert alert-danger">
+                    Failed to generate summary: ${data.error}
+                </div>
+            `;
+        }
+    })
+    .catch(error => {
+        document.getElementById('summaryContent').innerHTML = `
+            <div class="alert alert-danger">
+                Error: ${error.message}
+            </div>
+        `;
+    });
+}
+
+function suggestEvent() {
+    const modal = new bootstrap.Modal(document.getElementById('eventModal'));
+    modal.show();
+    
+    fetch('/api/suggest_event', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+            email_id: event.target.dataset.emailId
+        })
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success && data.suggestion) {
+            const suggestion = data.suggestion;
+            const conflicts = suggestion.conflicts || [];
+            
+            let conflictsHtml = '';
+            if (conflicts.length > 0) {
+                conflictsHtml = `
+                    <div class="alert alert-warning">
+                        <h6><i class="fas fa-exclamation-triangle"></i> Scheduling Conflicts</h6>
+                        <ul class="mb-0">
+                            ${conflicts.map(event => `<li>${event.summary || 'Event'} - ${new Date(event.start.dateTime || event.start.date).toLocaleString()}</li>`).join('')}
+                        </ul>
+                    </div>
+                `;
+            }
+            
+            document.getElementById('eventContent').innerHTML = `
+                <div class="alert alert-info">
+                    <h6><i class="fas fa-calendar-plus"></i> Suggested Event</h6>
+                    <p><strong>Title:</strong> ${suggestion.event_data.title}</p>
+                    <p><strong>Time:</strong> ${new Date(suggestion.event_data.start_time).toLocaleString()}</p>
+                    ${suggestion.event_data.location ? `<p><strong>Location:</strong> ${suggestion.event_data.location}</p>` : ''}
+                    <p><strong>Description:</strong> ${suggestion.event_data.description}</p>
+                    <p><strong>Confidence:</strong> ${suggestion.confidence_score}%</p>
+                </div>
+                
+                ${conflictsHtml}
+                
+                <div class="d-flex gap-2">
+                    <button class="btn btn-success" onclick="createEventFromSuggestion(${suggestion.suggestion_id})">
+                        <i class="fas fa-check"></i> Create Event
+                    </button>
+                    <button class="btn btn-secondary" onclick="rejectEventSuggestion(${suggestion.suggestion_id})">
+                        <i class="fas fa-times"></i> Reject
+                    </button>
+                </div>
+            `;
+        } else {
+            document.getElementById('eventContent').innerHTML = `
+                <div class="alert alert-warning">
+                    <i class="fas fa-info-circle"></i> 
+                    ${data.message || 'No meeting information found in this email.'}
+                </div>
+            `;
+        }
+    })
+    .catch(error => {
+        document.getElementById('eventContent').innerHTML = `
+            <div class="alert alert-danger">
+                Error: ${error.message}
+            </div>
+        `;
+    });
+}
+
+function createEventFromSuggestion(suggestionId) {
+    fetch('/api/create_event', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+            suggestion_id: suggestionId
+        })
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            showAlert('Event created successfully!', 'success');
+            bootstrap.Modal.getInstance(document.getElementById('eventModal')).hide();
+        } else {
+            showAlert('Failed to create event: ' + data.error, 'error');
+        }
+    })
+    .catch(error => {
+        showAlert('Error: ' + error.message, 'error');
+    });
+}
+
+function rejectEventSuggestion(suggestionId) {
+    fetch('/api/reject_suggestion', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+            suggestion_id: suggestionId
+        })
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            showAlert('Suggestion rejected', 'success');
+            bootstrap.Modal.getInstance(document.getElementById('eventModal')).hide();
+        } else {
+            showAlert('Failed to reject suggestion: ' + data.error, 'error');
+        }
+    })
+    .catch(error => {
+        showAlert('Error: ' + error.message, 'error');
+    });
+}
+
+function showAlert(message, type) {
+    const alertDiv = document.createElement('div');
+    alertDiv.className = `alert alert-${type === 'error' ? 'danger' : type} alert-dismissible fade show`;
+    alertDiv.innerHTML = `
+        ${message}
+        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+    `;
+    
+    const container = document.querySelector('main .container');
+    container.insertBefore(alertDiv, container.firstChild);
+    
+    setTimeout(() => {
+        alertDiv.remove();
+    }, 5000);
+}
+</script>
+
+<style>
+.email-text {
+    white-space: pre-wrap;
+    word-wrap: break-word;
+    background-color: #f8f9fa;
+    padding: 15px;
+    border-radius: 5px;
+    border: 1px solid #dee2e6;
+}
+
+.email-content {
+    max-height: 500px;
+    overflow-y: auto;
+}
+</style>
+{% endblock %}

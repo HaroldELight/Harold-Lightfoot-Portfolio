@@ -1,0 +1,213 @@
+{% extends "base.html" %}
+
+{% block title %}Calendar - Email Bot{% endblock %}
+
+{% block content %}
+<div class="row">
+    <div class="col-md-12">
+        <h1 class="mb-4">
+            <i class="fas fa-calendar"></i> Calendar
+        </h1>
+        
+        <div class="row">
+            <!-- Upcoming Events -->
+            <div class="col-md-8">
+                <div class="card">
+                    <div class="card-header d-flex justify-content-between align-items-center">
+                        <h5 class="mb-0">
+                            <i class="fas fa-calendar-alt"></i> Upcoming Events
+                        </h5>
+                        <button class="btn btn-sm btn-outline-primary" onclick="refreshCalendar()">
+                            <i class="fas fa-sync-alt"></i> Refresh
+                        </button>
+                    </div>
+                    <div class="card-body">
+                        {% if upcoming_events %}
+                            <div class="list-group">
+                                {% for event in upcoming_events %}
+                                <div class="list-group-item">
+                                    <div class="d-flex w-100 justify-content-between">
+                                        <h6 class="mb-1">{{ event.summary }}</h6>
+                                        <small class="text-muted">
+                                            {{ event.start.dateTime | default(event.start.date) | format_datetime }}
+                                        </small>
+                                    </div>
+                                    {% if event.description %}
+                                    <p class="mb-1">{{ event.description[:100] }}{% if event.description|length > 100 %}...{% endif %}</p>
+                                    {% endif %}
+                                    {% if event.location %}
+                                    <p class="mb-1">
+                                        <i class="fas fa-map-marker-alt text-muted"></i> {{ event.location }}
+                                    </p>
+                                    {% endif %}
+                                    <div class="mt-2">
+                                        <small class="text-muted">
+                                            <i class="fas fa-clock"></i>
+                                            {% if event.start.dateTime %}
+                                                {{ event.start.dateTime | format_datetime }} - {{ event.end.dateTime | format_datetime }}
+                                            {% else %}
+                                                All day - {{ event.start.date }}
+                                            {% endif %}
+                                        </small>
+                                    </div>
+                                </div>
+                                {% endfor %}
+                            </div>
+                        {% else %}
+                            <div class="text-center py-4">
+                                <i class="fas fa-calendar fa-3x text-muted mb-3"></i>
+                                <p class="text-muted">No upcoming events found.</p>
+                            </div>
+                        {% endif %}
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Event Suggestions -->
+            <div class="col-md-4">
+                <div class="card">
+                    <div class="card-header">
+                        <h5 class="mb-0">
+                            <i class="fas fa-calendar-plus"></i> Event Suggestions
+                        </h5>
+                    </div>
+                    <div class="card-body">
+                        {% if suggested_events %}
+                            {% for suggestion in suggested_events %}
+                            <div class="alert alert-info mb-3">
+                                <h6 class="alert-heading">{{ suggestion.title }}</h6>
+                                <p class="mb-1">
+                                    <small>
+                                        <i class="fas fa-clock"></i> 
+                                        {{ suggestion.start_time.strftime('%b %d, %Y %I:%M %p') if suggestion.start_time else 'Time not set' }}
+                                    </small>
+                                </p>
+                                {% if suggestion.location %}
+                                <p class="mb-1">
+                                    <small>
+                                        <i class="fas fa-map-marker-alt"></i> {{ suggestion.location }}
+                                    </small>
+                                </p>
+                                {% endif %}
+                                <div class="mt-2">
+                                    <button class="btn btn-success btn-sm" data-suggestion-id="{{ suggestion.id }}" onclick="createEvent(this.dataset.suggestionId)">
+                                        <i class="fas fa-check"></i> Create
+                                    </button>
+                                    <button class="btn btn-secondary btn-sm" data-suggestion-id="{{ suggestion.id }}" onclick="rejectSuggestion(this.dataset.suggestionId)">
+                                        <i class="fas fa-times"></i> Reject
+                                    </button>
+                                </div>
+                            </div>
+                            {% endfor %}
+                        {% else %}
+                            <div class="text-center py-3">
+                                <i class="fas fa-calendar-plus fa-2x text-muted mb-2"></i>
+                                <p class="text-muted small">No event suggestions yet.</p>
+                                <p class="text-muted small">Check your emails for meeting information.</p>
+                            </div>
+                        {% endif %}
+                    </div>
+                </div>
+                
+                <!-- Quick Actions -->
+                <div class="card mt-3">
+                    <div class="card-header">
+                        <h5 class="mb-0">
+                            <i class="fas fa-magic"></i> Quick Actions
+                        </h5>
+                    </div>
+                    <div class="card-body">
+                        <div class="d-grid gap-2">
+                            <a href="{{ url_for('emails') }}" class="btn btn-outline-primary">
+                                <i class="fas fa-envelope"></i> Check Emails for Events
+                            </a>
+                            <a href="{{ url_for('chat') }}" class="btn btn-outline-info">
+                                <i class="fas fa-comments"></i> Ask About Schedule
+                            </a>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+function refreshCalendar() {
+    const btn = event.target;
+    const originalText = btn.innerHTML;
+    btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Refreshing...';
+    btn.disabled = true;
+    
+    setTimeout(() => {
+        location.reload();
+    }, 1000);
+}
+
+function createEvent(suggestionId) {
+    fetch('/api/create_event', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+            suggestion_id: suggestionId
+        })
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            showAlert(data.message, 'success');
+            setTimeout(() => location.reload(), 2000);
+        } else {
+            showAlert(data.error || 'Failed to create event', 'error');
+        }
+    })
+    .catch(error => {
+        showAlert('Error: ' + error.message, 'error');
+    });
+}
+
+function rejectSuggestion(suggestionId) {
+    fetch('/api/reject_suggestion', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+            suggestion_id: suggestionId
+        })
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            showAlert(data.message, 'success');
+            setTimeout(() => location.reload(), 2000);
+        } else {
+            showAlert(data.error || 'Failed to reject suggestion', 'error');
+        }
+    })
+    .catch(error => {
+        showAlert('Error: ' + error.message, 'error');
+    });
+}
+
+function showAlert(message, type) {
+    const alertDiv = document.createElement('div');
+    alertDiv.className = `alert alert-${type === 'error' ? 'danger' : type} alert-dismissible fade show`;
+    alertDiv.innerHTML = `
+        ${message}
+        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+    `;
+    
+    const container = document.querySelector('main .container');
+    container.insertBefore(alertDiv, container.firstChild);
+    
+    setTimeout(() => {
+        alertDiv.remove();
+    }, 5000);
+}
+</script>
+{% endblock %}
