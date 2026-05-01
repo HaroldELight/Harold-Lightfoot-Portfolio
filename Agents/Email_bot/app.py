@@ -343,6 +343,119 @@ MOCK_SUGGESTIONS = [
     }
 ]
 
+class MockDatabase:
+    def get_emails(self, limit=20, offset=0, search_query=''):
+        emails = MOCK_EMAILS
+        if search_query:
+            search_lower = search_query.lower()
+            emails = [e for e in emails if 
+                     search_lower in e['subject'].lower() or 
+                     search_lower in e['sender'].lower() or 
+                     search_lower in e['body_text'].lower()]
+        return emails[offset:offset+limit]
+    
+    def get_email_by_id(self, email_id):
+        for email in MOCK_EMAILS:
+            if email['id'] == email_id:
+                return email
+        return None
+    
+    def get_email_count(self):
+        return len(MOCK_EMAILS)
+    
+    def get_unread_count(self):
+        return len([e for e in MOCK_EMAILS if not e['is_read']])
+    
+    def search_emails(self, query, limit=50):
+        return [e for e in MOCK_EMAILS if query.lower() in e['subject'].lower()][:limit]
+    
+    def create_draft(self, to, subject, body, cc=None, bcc=None):
+        """Create email draft (NO SENDING - DRAFT ONLY)"""
+        try:
+            conn = sqlite3.connect('data/drafts.db')
+            cursor = conn.cursor()
+            
+            # Create drafts table if not exists
+            cursor.execute('''
+                CREATE TABLE IF NOT EXISTS drafts (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    to_email TEXT NOT NULL,
+                    cc_email TEXT,
+                    bcc_email TEXT,
+                    subject TEXT NOT NULL,
+                    body TEXT NOT NULL,
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                )
+            ''')
+            
+            # Insert draft
+            cursor.execute('''
+                INSERT INTO drafts (to_email, cc_email, bcc_email, subject, body)
+                VALUES (?, ?, ?, ?, ?)
+            ''', (to, cc, bcc, subject, body))
+            
+            draft_id = cursor.lastrowid
+            conn.commit()
+            conn.close()
+            
+            print(f"Draft saved: ID {draft_id} - {subject} to {to}")
+            return draft_id
+            
+        except Exception as e:
+            print(f"Error saving draft: {e}")
+            return None
+    
+    def get_drafts(self, limit=20):
+        """Get saved drafts"""
+        try:
+            conn = sqlite3.connect('data/drafts.db')
+            cursor = conn.cursor()
+            
+            cursor.execute('''
+                SELECT id, to_email, cc_email, bcc_email, subject, body, created_at, updated_at
+                FROM drafts
+                ORDER BY updated_at DESC
+                LIMIT ?
+            ''', (limit,))
+            
+            drafts = []
+            for row in cursor.fetchall():
+                draft = {
+                    'id': row[0],
+                    'to': row[1],
+                    'cc': row[2],
+                    'bcc': row[3],
+                    'subject': row[4],
+                    'body': row[5],
+                    'created_at': row[6],
+                    'updated_at': row[7]
+                }
+                drafts.append(draft)
+            
+            conn.close()
+            return drafts
+            
+        except Exception as e:
+            print(f"Error getting drafts: {e}")
+            return []
+    
+    def delete_draft(self, draft_id):
+        """Delete draft (SAFE - only deletes local draft)"""
+        try:
+            conn = sqlite3.connect('data/drafts.db')
+            cursor = conn.cursor()
+            
+            cursor.execute('DELETE FROM drafts WHERE id = ?', (draft_id,))
+            
+            conn.commit()
+            conn.close()
+            return True
+            
+        except Exception as e:
+            print(f"Error deleting draft: {e}")
+            return False
+
 import imaplib
 import email
 from email.header import decode_header
