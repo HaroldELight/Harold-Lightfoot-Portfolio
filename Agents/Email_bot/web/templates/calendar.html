@@ -27,9 +27,9 @@
                                 {% for event in upcoming_events %}
                                 <div class="list-group-item">
                                     <div class="d-flex w-100 justify-content-between">
-                                        <h6 class="mb-1">{{ event.summary }}</h6>
+                                        <h6 class="mb-1">{{ event.title }}</h6>
                                         <small class="text-muted">
-                                            {{ event.start.dateTime | default(event.start.date) | format_datetime }}
+                                            {{ event.start_time.strftime('%b %d, %Y at %I:%M %p') if event.start_time else 'No time set' }}
                                         </small>
                                     </div>
                                     {% if event.description %}
@@ -43,10 +43,10 @@
                                     <div class="mt-2">
                                         <small class="text-muted">
                                             <i class="fas fa-clock"></i>
-                                            {% if event.start.dateTime %}
-                                                {{ event.start.dateTime | format_datetime }} - {{ event.end.dateTime | format_datetime }}
+                                            {% if event.start_time and event.end_time %}
+                                                {{ event.start_time.strftime('%b %d, %Y at %I:%M %p') }} - {{ event.end_time.strftime('%I:%M %p') }}
                                             {% else %}
-                                                All day - {{ event.start.date }}
+                                                Time not set
                                             {% endif %}
                                         </small>
                                     </div>

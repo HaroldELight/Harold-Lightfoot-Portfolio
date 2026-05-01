@@ -2,13 +2,20 @@ import os
 import uuid
 from datetime import datetime, timedelta
 from flask import Flask, render_template, request, redirect, url_for, session, jsonify
-from config.settings import Config
+from dotenv import load_dotenv
+
+# Load environment variables from .env file
+load_dotenv()
 
 app = Flask(__name__)
-app.config['SECRET_KEY'] = Config.SECRET_KEY
+app.config['SECRET_KEY'] = os.getenv('SECRET_KEY', 'mock-secret-key-for-testing')
 
 # Set template folder to web/templates
 app.template_folder = 'web/templates'
+
+# SAFETY RESTRICTIONS - Bot is READ-ONLY for security
+SAFETY_MODE = True  # Always enabled
+ALLOWED_OPERATIONS = ['read', 'search', 'draft']  # No delete, send, or modify
 
 # Simple AI Handler that connects to Ollama directly
 import requests
@@ -336,37 +343,250 @@ MOCK_SUGGESTIONS = [
     }
 ]
 
-class MockDatabase:
-    def get_emails(self, limit=20, offset=0, search_query=''):
-        emails = MOCK_EMAILS
-        if search_query:
-            search_lower = search_query.lower()
-            emails = [e for e in emails if 
-                     search_lower in e['subject'].lower() or 
-                     search_lower in e['sender'].lower() or 
-                     search_lower in e['body_text'].lower()]
-        return emails[offset:offset+limit]
+import imaplib
+import email
+from email.header import decode_header
+
+class SecureIMAPEmailProcessor:
+    def __init__(self):
+        self.gmail_email = os.getenv('GMAIL_EMAIL', '')
+        self.gmail_app_password = os.getenv('GMAIL_APP_PASSWORD', '')
+        self.imap_server = "imap.gmail.com"
+        self.imap_port = 993
+        self.use_mock = not (self.gmail_email and self.gmail_app_password)
+        
+        # SAFETY: Always enforce read-only mode
+        self.read_only = True
+        self.safety_mode = SAFETY_MODE
+        
+        if self.use_mock:
+            print("Using mock email data (no IMAP credentials provided)")
+        else:
+            print(f"Using READ-ONLY IMAP for {self.gmail_email}")
+            print("SECURITY: Bot is in READ-ONLY mode - cannot delete or send emails")
+    
+    def _connect_imap(self):
+        """Connect to IMAP server in read-only mode"""
+        if self.use_mock:
+            return None
+            
+        try:
+            mail = imaplib.IMAP4_SSL(self.imap_server, self.imap_port)
+            mail.login(self.gmail_email, self.gmail_app_password)
+            return mail
+        except Exception as e:
+            print(f"IMAP connection error: {e}")
+            return None
+    
+    def _decode_header(self, header):
+        """Decode email header"""
+        if header:
+            decoded_parts = decode_header(header)
+            header_str = ""
+            for part, encoding in decoded_parts:
+                if isinstance(part, bytes):
+                    header_str += part.decode(encoding or 'utf-8', errors='ignore')
+                else:
+                    header_str += part
+            return header_str
+        return ""
+    
+    def _parse_email(self, mail, email_id):
+        """Parse email from IMAP"""
+        try:
+            # Fetch email
+            status, msg_data = mail.fetch(email_id, '(RFC822)')
+            if status != 'OK':
+                return None
+            
+            # Parse email content
+            raw_email = msg_data[0][1]
+            msg = email.message_from_bytes(raw_email)
+            
+            # Extract headers
+            subject = self._decode_header(msg['subject'])
+            sender = self._decode_header(msg['from'])
+            recipients = self._decode_header(msg['to'])
+            date_str = msg['date']
+            
+            # Parse date
+            date_received = None
+            if date_str:
+                try:
+                    from email.utils import parsedate_to_datetime
+                    date_received = parsedate_to_datetime(date_str)
+                except:
+                    date_received = datetime.now()
+            else:
+                date_received = datetime.now()
+            
+            # Extract body
+            body_text = ""
+            body_html = ""
+            
+            if msg.is_multipart():
+                for part in msg.walk():
+                    content_type = part.get_content_type()
+                    if content_type == "text/plain":
+                        try:
+                            body_text = part.get_payload(decode=True).decode('utf-8', errors='ignore')
+                        except:
+                            body_text = str(part.get_payload(decode=True))
+                    elif content_type == "text/html":
+                        try:
+                            body_html = part.get_payload(decode=True).decode('utf-8', errors='ignore')
+                        except:
+                            body_html = str(part.get_payload(decode=True))
+            else:
+                content_type = msg.get_content_type()
+                if content_type == "text/plain":
+                    try:
+                        body_text = msg.get_payload(decode=True).decode('utf-8', errors='ignore')
+                    except:
+                        body_text = str(msg.get_payload(decode=True))
+                elif content_type == "text/html":
+                    try:
+                        body_html = msg.get_payload(decode=True).decode('utf-8', errors='ignore')
+                    except:
+                        body_html = str(msg.get_payload(decode=True))
+            
+            # Create snippet
+            snippet = body_text[:100] + "..." if len(body_text) > 100 else body_text
+            
+            return {
+                'id': int(email_id),
+                'gmail_id': str(email_id),
+                'subject': subject,
+                'sender': sender,
+                'recipients': recipients,
+                'date_received': date_received,
+                'body_text': body_text,
+                'body_html': body_html,
+                'snippet': snippet,
+                'is_read': False,  # Will be updated based on IMAP flags
+                'is_starred': False
+            }
+            
+        except Exception as e:
+            print(f"Error parsing email {email_id}: {e}")
+            return None
+    
+    def fetch_emails(self, limit=50):
+        """Fetch emails from IMAP or return mock data (READ-ONLY)"""
+        if self.use_mock:
+            return MOCK_EMAILS
+        
+        mail = self._connect_imap()
+        if not mail:
+            print("Failed to connect to IMAP, using mock data")
+            return MOCK_EMAILS
+        
+        try:
+            # Select inbox in read-only mode
+            mail.select('inbox', readonly=True)
+            
+            # Search for all emails
+            status, messages = mail.search(None, 'ALL')
+            if status != 'OK':
+                print("No messages found")
+                return MOCK_EMAILS
+            
+            # Get email IDs
+            email_ids = messages[0].split()
+            
+            # Fetch recent emails (limit to most recent)
+            recent_emails = []
+            for email_id in email_ids[-limit:]:
+                email_data = self._parse_email(mail, email_id)
+                if email_data:
+                    recent_emails.append(email_data)
+            
+            # Sort by date (newest first)
+            recent_emails.sort(key=lambda x: x['date_received'], reverse=True)
+            
+            mail.close()
+            mail.logout()
+            
+            return recent_emails
+            
+        except Exception as e:
+            print(f"Error fetching emails: {e}")
+            try:
+                mail.close()
+                mail.logout()
+            except:
+                pass
+            return MOCK_EMAILS
+    
+    def get_email_count(self):
+        """Get total email count (READ-ONLY)"""
+        if self.use_mock:
+            return len(MOCK_EMAILS)
+        
+        mail = self._connect_imap()
+        if not mail:
+            return len(MOCK_EMAILS)
+        
+        try:
+            mail.select('inbox', readonly=True)
+            status, messages = mail.search(None, 'ALL')
+            if status == 'OK':
+                count = len(messages[0].split())
+            else:
+                count = len(MOCK_EMAILS)
+            
+            mail.close()
+            mail.logout()
+            return count
+        except Exception as e:
+            print(f"Error getting email count: {e}")
+            return len(MOCK_EMAILS)
+    
+    def get_unread_count(self):
+        """Get unread email count (READ-ONLY)"""
+        if self.use_mock:
+            return len([e for e in MOCK_EMAILS if not e['is_read']])
+        
+        mail = self._connect_imap()
+        if not mail:
+            return len([e for e in MOCK_EMAILS if not e['is_read']])
+        
+        try:
+            mail.select('inbox', readonly=True)
+            status, messages = mail.search(None, 'UNSEEN')
+            if status == 'OK':
+                count = len(messages[0].split())
+            else:
+                count = 0
+            
+            mail.close()
+            mail.logout()
+            return count
+        except Exception as e:
+            print(f"Error getting unread count: {e}")
+            return 0
+    
+    def search_emails(self, query, limit=50, offset=0):
+        """Search emails (READ-ONLY)"""
+        emails = self.fetch_emails(limit=100)  # Fetch more for better search
+        search_lower = query.lower()
+        
+        filtered_emails = []
+        for e in emails:
+            if (search_lower in e['subject'].lower() or 
+                search_lower in e['sender'].lower() or 
+                search_lower in e['body_text'].lower()):
+                filtered_emails.append(e)
+        
+        return filtered_emails[offset:offset+limit]
     
     def get_email_by_id(self, email_id):
-        for email in MOCK_EMAILS:
+        """Get email by ID (READ-ONLY)"""
+        emails = self.fetch_emails(limit=100)
+        for email in emails:
             if email['id'] == email_id:
                 return email
         return None
-    
-    def get_email_count(self):
-        return len(MOCK_EMAILS)
-    
-    def get_unread_count(self):
-        return len([e for e in MOCK_EMAILS if not e['is_read']])
-    
-    def add_email(self, **kwargs):
-        new_email = {
-            'id': len(MOCK_EMAILS) + 1,
-            'gmail_id': f"mock{len(MOCK_EMAILS) + 1}",
-            **kwargs
-        }
-        MOCK_EMAILS.append(new_email)
-        return new_email
     
     def get_calendar_events(self, status=None):
         events = MOCK_EVENTS
@@ -396,40 +616,341 @@ class MockEmailProcessor:
         return [e for e in MOCK_EMAILS if query.lower() in e['subject'].lower()][:limit]
     
     def create_draft(self, to, subject, body, cc=None, bcc=None):
-        print(f"Mock draft created: {subject} to {to}")
-        return True
+        """Create email draft (NO SENDING - DRAFT ONLY)"""
+        try:
+            conn = sqlite3.connect('data/drafts.db')
+            cursor = conn.cursor()
+            
+            # Create drafts table if not exists
+            cursor.execute('''
+                CREATE TABLE IF NOT EXISTS drafts (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    to_email TEXT NOT NULL,
+                    cc_email TEXT,
+                    bcc_email TEXT,
+                    subject TEXT NOT NULL,
+                    body TEXT NOT NULL,
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                )
+            ''')
+            
+            # Insert draft
+            cursor.execute('''
+                INSERT INTO drafts (to_email, cc_email, bcc_email, subject, body)
+                VALUES (?, ?, ?, ?, ?)
+            ''', (to, cc, bcc, subject, body))
+            
+            draft_id = cursor.lastrowid
+            conn.commit()
+            conn.close()
+            
+            print(f"Draft saved: ID {draft_id} - {subject} to {to}")
+            return draft_id
+            
+        except Exception as e:
+            print(f"Error saving draft: {e}")
+            return None
+    
+    def get_drafts(self, limit=20):
+        """Get saved drafts"""
+        try:
+            conn = sqlite3.connect('data/drafts.db')
+            cursor = conn.cursor()
+            
+            cursor.execute('''
+                SELECT id, to_email, cc_email, bcc_email, subject, body, created_at, updated_at
+                FROM drafts
+                ORDER BY updated_at DESC
+                LIMIT ?
+            ''', (limit,))
+            
+            drafts = []
+            for row in cursor.fetchall():
+                draft = {
+                    'id': row[0],
+                    'to': row[1],
+                    'cc': row[2],
+                    'bcc': row[3],
+                    'subject': row[4],
+                    'body': row[5],
+                    'created_at': row[6],
+                    'updated_at': row[7]
+                }
+                drafts.append(draft)
+            
+            conn.close()
+            return drafts
+            
+        except Exception as e:
+            print(f"Error getting drafts: {e}")
+            return []
+    
+    def delete_draft(self, draft_id):
+        """Delete draft (SAFE - only deletes local draft)"""
+        try:
+            conn = sqlite3.connect('data/drafts.db')
+            cursor = conn.cursor()
+            
+            cursor.execute('DELETE FROM drafts WHERE id = ?', (draft_id,))
+            
+            conn.commit()
+            conn.close()
+            return True
+            
+        except Exception as e:
+            print(f"Error deleting draft: {e}")
+            return False
 
-class MockCalendar:
+import sqlite3
+import json
+
+class LocalCalendar:
+    def __init__(self):
+        self.db_path = 'data/calendar.db'
+        self.init_database()
+    
+    def init_database(self):
+        """Initialize calendar database"""
+        os.makedirs(os.path.dirname(self.db_path), exist_ok=True)
+        
+        conn = sqlite3.connect(self.db_path)
+        cursor = conn.cursor()
+        
+        # Create events table
+        cursor.execute('''
+            CREATE TABLE IF NOT EXISTS events (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                title TEXT NOT NULL,
+                description TEXT,
+                start_time TEXT NOT NULL,
+                end_time TEXT NOT NULL,
+                location TEXT,
+                status TEXT DEFAULT 'created',
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            )
+        ''')
+        
+        # Create suggestions table
+        cursor.execute('''
+            CREATE TABLE IF NOT EXISTS suggestions (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                title TEXT NOT NULL,
+                description TEXT,
+                start_time TEXT NOT NULL,
+                end_time TEXT NOT NULL,
+                location TEXT,
+                status TEXT DEFAULT 'suggested',
+                email_id TEXT,
+                confidence_score INTEGER DEFAULT 50,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            )
+        ''')
+        
+        conn.commit()
+        conn.close()
+    
     def get_events(self, days_ahead=7):
-        return MOCK_EVENTS
+        """Get upcoming events"""
+        conn = sqlite3.connect(self.db_path)
+        cursor = conn.cursor()
+        
+        # Calculate date range
+        start_date = datetime.now()
+        end_date = start_date + timedelta(days=days_ahead)
+        
+        cursor.execute('''
+            SELECT id, title, description, start_time, end_time, location, status
+            FROM events 
+            WHERE start_time >= ? AND start_time <= ?
+            ORDER BY start_time ASC
+        ''', (start_date.isoformat(), end_date.isoformat()))
+        
+        events = []
+        for row in cursor.fetchall():
+            event = {
+                'id': row[0],
+                'title': row[1],
+                'description': row[2],
+                'start_time': datetime.fromisoformat(row[3]),
+                'end_time': datetime.fromisoformat(row[4]),
+                'location': row[5],
+                'status': row[6]
+            }
+            events.append(event)
+        
+        conn.close()
+        
+        # If no real events, return mock data for testing
+        if not events:
+            return MOCK_EVENTS
+        
+        return events
     
     def get_suggested_events(self):
-        return MOCK_SUGGESTIONS
+        """Get event suggestions"""
+        conn = sqlite3.connect(self.db_path)
+        cursor = conn.cursor()
+        
+        cursor.execute('''
+            SELECT id, title, description, start_time, end_time, location, status, confidence_score
+            FROM suggestions 
+            WHERE status = 'suggested'
+            ORDER BY created_at DESC
+        ''')
+        
+        suggestions = []
+        for row in cursor.fetchall():
+            suggestion = {
+                'id': row[0],
+                'title': row[1],
+                'description': row[2],
+                'start_time': datetime.fromisoformat(row[3]),
+                'end_time': datetime.fromisoformat(row[4]),
+                'location': row[5],
+                'status': row[6],
+                'confidence_score': row[7]
+            }
+            suggestions.append(suggestion)
+        
+        conn.close()
+        
+        # If no real suggestions, return mock data for testing
+        if not suggestions:
+            return MOCK_SUGGESTIONS
+        
+        return suggestions
     
     def suggest_event_from_email(self, email):
-        return {
-            'suggestion_id': 1,
-            'event_data': {
-                'title': 'Meeting from email',
-                'start_time': (datetime.now() + timedelta(days=2)).isoformat(),
-                'end_time': (datetime.now() + timedelta(days=2, hours=1)).isoformat(),
-                'location': 'Conference Room',
-                'description': 'Meeting extracted from email'
-            },
-            'conflicts': [],
-            'confidence_score': 75
-        }
+        """Suggest event from email using AI"""
+        try:
+            # Use AI to extract meeting info
+            meeting_info = ai_handler.extract_meeting_info(email['body_text'])
+            
+            if meeting_info:
+                # Generate event from meeting info
+                event_data = ai_handler.generate_calendar_event_from_meeting(meeting_info, email['body_text'])
+                
+                # Save suggestion to database
+                conn = sqlite3.connect(self.db_path)
+                cursor = conn.cursor()
+                
+                cursor.execute('''
+                    INSERT INTO suggestions (title, description, start_time, end_time, location, email_id, confidence_score)
+                    VALUES (?, ?, ?, ?, ?, ?, ?)
+                ''', (
+                    event_data['title'],
+                    event_data['description'],
+                    event_data['start_time'],
+                    event_data['end_time'],
+                    event_data['location'],
+                    str(email['id']),
+                    meeting_info.get('confidence_score', 50)
+                ))
+                
+                suggestion_id = cursor.lastrowid
+                conn.commit()
+                conn.close()
+                
+                return {
+                    'suggestion_id': suggestion_id,
+                    'event_data': event_data,
+                    'conflicts': [],  # TODO: Check for conflicts
+                    'confidence_score': meeting_info.get('confidence_score', 50)
+                }
+            else:
+                return None
+                
+        except Exception as e:
+            print(f"Error suggesting event from email: {e}")
+            return None
     
     def create_suggested_event(self, suggestion_id):
-        return True, {'message': 'Event created successfully'}
+        """Create event from suggestion"""
+        try:
+            conn = sqlite3.connect(self.db_path)
+            cursor = conn.cursor()
+            
+            # Get suggestion
+            cursor.execute('''
+                SELECT title, description, start_time, end_time, location
+                FROM suggestions 
+                WHERE id = ? AND status = 'suggested'
+            ''', (suggestion_id,))
+            
+            suggestion = cursor.fetchone()
+            if not suggestion:
+                conn.close()
+                return False, {'error': 'Suggestion not found'}
+            
+            # Create event
+            cursor.execute('''
+                INSERT INTO events (title, description, start_time, end_time, location)
+                VALUES (?, ?, ?, ?, ?)
+            ''', suggestion)
+            
+            # Update suggestion status
+            cursor.execute('''
+                UPDATE suggestions 
+                SET status = 'accepted' 
+                WHERE id = ?
+            ''', (suggestion_id,))
+            
+            conn.commit()
+            conn.close()
+            
+            return True, {'message': 'Event created successfully'}
+            
+        except Exception as e:
+            print(f"Error creating event from suggestion: {e}")
+            return False, {'error': str(e)}
     
     def reject_suggestion(self, suggestion_id):
-        return True, 'Suggestion rejected'
+        """Reject event suggestion"""
+        try:
+            conn = sqlite3.connect(self.db_path)
+            cursor = conn.cursor()
+            
+            cursor.execute('''
+                UPDATE suggestions 
+                SET status = 'rejected' 
+                WHERE id = ?
+            ''', (suggestion_id,))
+            
+            conn.commit()
+            conn.close()
+            
+            return True, 'Suggestion rejected'
+            
+        except Exception as e:
+            print(f"Error rejecting suggestion: {e}")
+            return False, str(e)
+    
+    def add_event(self, title, description, start_time, end_time, location=''):
+        """Add event directly"""
+        try:
+            conn = sqlite3.connect(self.db_path)
+            cursor = conn.cursor()
+            
+            cursor.execute('''
+                INSERT INTO events (title, description, start_time, end_time, location)
+                VALUES (?, ?, ?, ?, ?)
+            ''', (title, description, start_time, end_time, location))
+            
+            event_id = cursor.lastrowid
+            conn.commit()
+            conn.close()
+            
+            return event_id
+            
+        except Exception as e:
+            print(f"Error adding event: {e}")
+            return None
 
 # Initialize components
 db = MockDatabase()
-email_processor = MockEmailProcessor()
-calendar_manager = MockCalendar()
+email_processor = SecureIMAPEmailProcessor()
+calendar_manager = LocalCalendar()
 
 @app.route('/')
 def index():
@@ -723,27 +1244,62 @@ def api_reject_suggestion():
 
 @app.route('/api/create_draft', methods=['POST'])
 def api_create_draft():
-    """Create email draft"""
+    """Create email draft (NO SENDING - DRAFT ONLY)"""
     data = request.get_json()
+    to = data.get('to')
+    subject = data.get('subject')
+    body = data.get('body')
+    cc = data.get('cc')
+    bcc = data.get('bcc')
+    
+    if not to or not subject or not body:
+        return jsonify({'error': 'To, subject, and body are required'}), 400
     
     try:
-        success = email_processor.create_draft(
-            to=data.get('to', ''),
-            subject=data.get('subject', ''),
-            body=data.get('body', ''),
-            cc=data.get('cc'),
-            bcc=data.get('bcc')
-        )
+        draft_id = db.create_draft(to, subject, body, cc, bcc)
         
-        if success:
+        if draft_id:
             return jsonify({
                 'success': True,
-                'message': 'Draft created successfully'
+                'draft_id': draft_id,
+                'message': 'Draft saved successfully'
             })
         else:
             return jsonify({
                 'success': False,
-                'error': 'Failed to create draft'
+                'error': 'Failed to save draft'
+            })
+            
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+@app.route('/api/drafts')
+def api_get_drafts():
+    """Get saved drafts"""
+    try:
+        drafts = db.get_drafts()
+        return jsonify({
+            'success': True,
+            'drafts': drafts
+        })
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+@app.route('/api/delete_draft/<int:draft_id>', methods=['DELETE'])
+def api_delete_draft(draft_id):
+    """Delete draft (SAFE - only deletes local draft)"""
+    try:
+        success = db.delete_draft(draft_id)
+        
+        if success:
+            return jsonify({
+                'success': True,
+                'message': 'Draft deleted successfully'
+            })
+        else:
+            return jsonify({
+                'success': False,
+                'error': 'Draft not found'
             })
             
     except Exception as e:
